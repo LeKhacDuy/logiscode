@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  edumanage-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: edumanage-backend-api
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - NODE_ENV=production
+      - JWT_SECRET=super_secret_key_edumanage_2026_key
+    volumes:
+      # Persist data database outside container
+      - ./data_store:/app/dist/data

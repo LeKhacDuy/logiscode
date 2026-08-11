@@ -1,0 +1,256 @@
+{
+  "users": [
+    {
+      "id": "u-admin-1",
+      "email": "admin@edumanage.com",
+      "fullname": "Quản Trị Viên (Admin)",
+      "role": "ADMIN",
+      "status": "active",
+      "passwordHash": "$2a$10$zcrYVaGE9YibkFhzU242led.HBNbco4jPPpbTPsGUEvPKAvAM92lC",
+      "createdAt": "2026-08-11T09:35:16.870Z"
+    },
+    {
+      "id": "u-teacher-1",
+      "email": "gv.an@edumanage.com",
+      "fullname": "Thầy Nguyễn Văn An",
+      "role": "TEACHER",
+      "status": "active",
+      "passwordHash": "$2a$10$zcrYVaGE9YibkFhzU242led.HBNbco4jPPpbTPsGUEvPKAvAM92lC",
+      "createdAt": "2026-08-11T09:35:16.870Z"
+    },
+    {
+      "id": "u-teacher-2",
+      "email": "gv.huong@edumanage.com",
+      "fullname": "Cô Trần Thị Hương",
+      "role": "TEACHER",
+      "status": "active",
+      "passwordHash": "$2a$10$zcrYVaGE9YibkFhzU242led.HBNbco4jPPpbTPsGUEvPKAvAM92lC",
+      "createdAt": "2026-08-11T09:35:16.870Z"
+    },
+    {
+      "id": "u-student-1",
+      "email": "hv.binh@edumanage.com",
+      "fullname": "Lê Văn Bình",
+      "role": "STUDENT",
+      "status": "active",
+      "passwordHash": "$2a$10$zcrYVaGE9YibkFhzU242led.HBNbco4jPPpbTPsGUEvPKAvAM92lC",
+      "createdAt": "2026-08-11T09:35:16.870Z"
+    },
+    {
+      "id": "u-student-2",
+      "email": "hv.chi@edumanage.com",
+      "fullname": "Phạm Minh Chi",
+      "role": "STUDENT",
+      "status": "active",
+      "passwordHash": "$2a$10$zcrYVaGE9YibkFhzU242led.HBNbco4jPPpbTPsGUEvPKAvAM92lC",
+      "createdAt": "2026-08-11T09:35:16.870Z"
+    },
+    {
+      "id": "u-student-3",
+      "email": "hv.duong@edumanage.com",
+      "fullname": "Hoàng Thùy Dương",
+      "role": "STUDENT",
+      "status": "active",
+      "passwordHash": "$2a$10$zcrYVaGE9YibkFhzU242led.HBNbco4jPPpbTPsGUEvPKAvAM92lC",
+      "createdAt": "2026-08-11T09:35:16.870Z"
+    },
+    {
+      "id": "u-student-4",
+      "email": "hv.dung@edumanage.com",
+      "fullname": "Ngô Quốc Dũng",
+      "role": "STUDENT",
+      "status": "lock",
+      "passwordHash": "$2a$10$zcrYVaGE9YibkFhzU242led.HBNbco4jPPpbTPsGUEvPKAvAM92lC",
+      "createdAt": "2026-08-11T09:35:16.870Z"
+    }
+  ],
+  "courses": [
+    {
+      "id": "c-ielts-found",
+      "name": "IELTS Preparation Foundation",
+      "totalSessions": 12,
+      "level": "foundation",
+      "sessionExerciseGroupIds": {
+        "1": "ex-group-1",
+        "2": "ex-group-2"
+      },
+      "createdAt": "2026-08-11T09:35:16.870Z"
+    },
+    {
+      "id": "c-react-fullstack",
+      "name": "Lập Trình Web React & Node.js Fullstack",
+      "totalSessions": 24,
+      "level": "intermediate",
+      "sessionExerciseGroupIds": {
+        "1": "ex-group-1"
+      },
+      "createdAt": "2026-08-11T09:35:16.870Z"
+    },
+    {
+      "id": "c-biz-english",
+      "name": "Business English Advanced Communication",
+      "totalSessions": 36,
+      "level": "advanced",
+      "sessionExerciseGroupIds": {},
+      "createdAt": "2026-08-11T09:35:16.871Z"
+    }
+  ],
+  "classes": [
+    {
+      "id": "cls-ielts-01",
+      "name": "IELTS Foundation K102",
+      "courseId": "c-ielts-found",
+      "status": "ongoing",
+      "teacherId": "u-teacher-1",
+      "studentIds": [
+        "u-student-1",
+        "u-student-2",
+        "u-student-3"
+      ],
+      "createdAt": "2026-08-11T09:35:16.871Z"
+    },
+    {
+      "id": "cls-react-02",
+      "name": "React Fullstack Web Dev K45",
+      "courseId": "c-react-fullstack",
+      "status": "ongoing",
+      "teacherId": "u-teacher-2",
+      "studentIds": [
+        "u-student-1",
+        "u-student-3"
+      ],
+      "createdAt": "2026-08-11T09:35:16.871Z"
+    },
+    {
+      "id": "cls-biz-03",
+      "name": "Business English Elite K08",
+      "courseId": "c-biz-english",
+      "status": "schedule",
+      "teacherId": "u-teacher-1",
+      "studentIds": [
+        "u-student-2"
+      ],
+      "createdAt": "2026-08-11T09:35:16.871Z"
+    }
+  ],
+  "exercises": [
+    {
+      "id": "ex-group-1",
+      "name": "Nhóm bài tập Buổi 1: Grammar & Vocabulary Basics",
+      "status": "active",
+      "createdAt": "2026-08-11T09:35:16.871Z",
+      "sections": [
+        {
+          "id": "sec-1",
+          "title": "Phần 1: Multiple Choice & Fill-in-the-blank",
+          "questions": [
+            {
+              "id": "q-mc-1",
+              "type": "multiple_choice",
+              "prompt": "Which sentence uses the present perfect tense correctly?",
+              "options": [
+                "A. She has finished her assignment yesterday.",
+                "B. She has finished her assignment already.",
+                "C. She finishes her assignment since 2 hours.",
+                "D. She had finish her assignment."
+              ],
+              "correctAnswer": "B. She has finished her assignment already.",
+              "explanation": "Present perfect uses \"have/has + past participle\" with time signals like \"already\" without specific past time expressions like \"yesterday\"."
+            },
+            {
+              "id": "q-fb-1",
+              "type": "fill_blank",
+              "prompt": "Fill in the correct prepositions: \"He has been working here _____ 2020.\"",
+              "correctAnswer": "since",
+              "explanation": "Use \"since\" for a specific point in time (2020), and \"for\" for a duration of time."
+            }
+          ]
+        },
+        {
+          "id": "sec-2",
+          "title": "Phần 2: Listening & Speaking Skills",
+          "questions": [
+            {
+              "id": "q-lis-1",
+              "type": "listening",
+              "prompt": "Nghe đoạn hội thoại sau và chọn câu trả lời đúng:",
+              "audioUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+              "options": [
+                "A. The meeting will start at 9:00 AM.",
+                "B. The meeting is postponed until next Monday.",
+                "C. The meeting takes place in Room 402.",
+                "D. The meeting was cancelled."
+              ],
+              "correctAnswer": "C. The meeting takes place in Room 402.",
+              "explanation": "In the audio, the speaker confirms Room 402 is reserved for the 10:00 AM session."
+            },
+            {
+              "id": "q-spk-1",
+              "type": "speaking",
+              "prompt": "Hãy nói và thu âm đoạn văn ngắn (1-2 phút) giới thiệu về mục tiêu học tập của bạn trong khóa học này.",
+              "explanation": "Đánh giá dựa trên độ lưu khoát, phát âm chuẩn và cấu trúc ngữ pháp."
+            },
+            {
+              "id": "q-ess-1",
+              "type": "essay",
+              "prompt": "Viết một đoạn văn ngắn (150-200 từ) trình bày suy nghĩ của bạn về tầm quan trọng của việc học tiếng Anh trong thời đại AI.",
+              "explanation": "Giáo viên sẽ chấm trực tiếp điểm nội dung và vốn từ vựng."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ex-group-2",
+      "name": "Nhóm bài tập Buổi 2: Reading & Listening Practice",
+      "status": "active",
+      "createdAt": "2026-08-11T09:35:16.871Z",
+      "sections": []
+    }
+  ],
+  "submissions": [
+    {
+      "id": "sub-1",
+      "classId": "cls-ielts-01",
+      "sessionId": 1,
+      "studentId": "u-student-1",
+      "answers": [
+        {
+          "questionId": "q-mc-1",
+          "answer": "B. She has finished her assignment already."
+        },
+        {
+          "questionId": "q-fb-1",
+          "answer": "since"
+        },
+        {
+          "questionId": "q-lis-1",
+          "answer": "C. The meeting takes place in Room 402."
+        },
+        {
+          "questionId": "q-ess-1",
+          "answer": "English remains vital in the AI era as it enables humans to write precise prompts, evaluate machine responses, and communicate globally."
+        }
+      ],
+      "audioBlobUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+      "score": 95,
+      "feedback": "Bài làm rất tốt, phát âm rõ ràng, bài tự luận mạch lạc!",
+      "isLate": false,
+      "submittedAt": "2026-08-11T09:35:16.871Z"
+    }
+  ],
+  "selfStudies": [
+    {
+      "id": "ss-1",
+      "classId": "cls-ielts-01",
+      "sessionId": 1,
+      "content": "### Tài liệu Tự học Buổi 1: IELTS Grammar & Vocab Essentials\n- Đọc tài liệu Unit 1 trong giáo trình trang 12-25.\n- Xem video bài giảng về Thì Hiện tại Hoàn thành.\n- Ghi chú 10 từ vựng chuyên ngành.",
+      "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+      "updatedBy": "u-teacher-1",
+      "updatedAt": "2026-08-11T09:35:16.871Z",
+      "viewedBy": {
+        "u-student-1": "2026-08-11T09:35:16.871Z"
+      }
+    }
+  ]
+}
