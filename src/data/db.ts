@@ -12,7 +12,8 @@ export interface DatabaseSchema {
   selfStudies: SelfStudy[];
 }
 
-const DB_FILE_PATH = path.join(__dirname, 'db_data.json');
+const DB_FILE_PATH = process.env.DATA_PATH || path.join(__dirname, 'db_data.json');
+
 
 const defaultPasswordHash = bcrypt.hashSync('123456', 10);
 
