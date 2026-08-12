@@ -26,6 +26,14 @@ Hệ thống cung cấp đầy đủ các RESTful API phục vụ hệ thống Q
     },
     servers: [
       {
+        url: '/',
+        description: 'Current Host Server (Tự động nhận diện cho cả Local & VPS)'
+      },
+      {
+        url: 'http://160.250.187.141:5001',
+        description: 'VPS Production Server (160.250.187.141)'
+      },
+      {
         url: 'http://localhost:5001',
         description: 'Local Development Server'
       }
