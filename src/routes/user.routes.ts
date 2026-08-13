@@ -53,7 +53,7 @@ router.get('/', getUsers);
  * @swagger
  * /api/v1/users:
  *   post:
- *     summary: Thêm tài khoản mới - Admin Only
+ *     summary: Thêm tài khoản mới (Tự động sinh mật khẩu 6 ký tự) - Admin Only
  *     tags: [Users Management]
  *     security:
  *       - bearerAuth: []
@@ -82,14 +82,12 @@ router.get('/', getUsers);
  *                 type: string
  *                 enum: [active, lock]
  *                 default: active
- *               password:
- *                 type: string
- *                 default: "123456"
  *     responses:
  *       201:
- *         description: Tạo tài khoản thành công.
+ *         description: Tạo tài khoản thành công. Trả về thông tin user và mật khẩu 6 ký tự được tự động tạo.
  */
 router.post('/', createUser);
+
 
 /**
  * @swagger

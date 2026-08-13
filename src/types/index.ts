@@ -8,8 +8,10 @@ export interface User {
   role: Role;
   status: UserStatus;
   passwordHash?: string;
+  rawPassword?: string;
   createdAt: string;
 }
+
 
 export type CourseLevel = 'foundation' | 'intermediate' | 'advanced';
 

@@ -26,6 +26,7 @@ const initialSeedData: DatabaseSchema = {
       role: 'ADMIN',
       status: 'active',
       passwordHash: defaultPasswordHash,
+      rawPassword: '123456',
       createdAt: new Date().toISOString()
     },
     {
@@ -35,6 +36,7 @@ const initialSeedData: DatabaseSchema = {
       role: 'TEACHER',
       status: 'active',
       passwordHash: defaultPasswordHash,
+      rawPassword: '123456',
       createdAt: new Date().toISOString()
     },
     {
@@ -44,6 +46,7 @@ const initialSeedData: DatabaseSchema = {
       role: 'TEACHER',
       status: 'active',
       passwordHash: defaultPasswordHash,
+      rawPassword: '123456',
       createdAt: new Date().toISOString()
     },
     {
@@ -53,6 +56,7 @@ const initialSeedData: DatabaseSchema = {
       role: 'STUDENT',
       status: 'active',
       passwordHash: defaultPasswordHash,
+      rawPassword: '123456',
       createdAt: new Date().toISOString()
     },
     {
@@ -62,6 +66,7 @@ const initialSeedData: DatabaseSchema = {
       role: 'STUDENT',
       status: 'active',
       passwordHash: defaultPasswordHash,
+      rawPassword: '123456',
       createdAt: new Date().toISOString()
     },
     {
@@ -71,6 +76,7 @@ const initialSeedData: DatabaseSchema = {
       role: 'STUDENT',
       status: 'active',
       passwordHash: defaultPasswordHash,
+      rawPassword: '123456',
       createdAt: new Date().toISOString()
     },
     {
@@ -80,6 +86,7 @@ const initialSeedData: DatabaseSchema = {
       role: 'STUDENT',
       status: 'lock',
       passwordHash: defaultPasswordHash,
+      rawPassword: '123456',
       createdAt: new Date().toISOString()
     }
   ],
