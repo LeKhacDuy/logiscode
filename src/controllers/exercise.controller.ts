@@ -33,6 +33,22 @@ export const getExercises = (req: Request, res: Response) => {
   });
 };
 
+export const getExerciseById = (req: Request, res: Response) => {
+  const { id } = req.params;
+  const exercises = db.get('exercises');
+  const exercise = exercises.find(ex => ex.id === id);
+
+  if (!exercise) {
+    return res.status(404).json({ success: false, message: 'Nhóm bài tập không tồn tại.' });
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: exercise
+  });
+};
+
+
 export const createExercise = (req: Request, res: Response) => {
   const { name, status = 'active', sections = [] } = req.body;
 
@@ -74,17 +90,47 @@ export const updateExercise = (req: Request, res: Response) => {
 
   if (name) exercise.name = name.trim();
   if (status) exercise.status = status;
-  if (sections && Array.isArray(sections)) exercise.sections = sections;
+
+  // QUY TẮC NGHIỆP VỤ:
+  // - Chỉ cập nhật được nội dung câu hỏi và câu trả lời đã được tạo (tránh bị ảnh hưởng bởi các khóa đã được gán vào lớp học)
+  // - Không được sửa/xoá đáp án đúng (bảo toàn correctAnswer ban đầu).
+  if (sections && Array.isArray(sections)) {
+    const existingQuestionMap = new Map<string, any>();
+    exercise.sections?.forEach(sec => {
+      sec.questions?.forEach(q => {
+        if (q.id) existingQuestionMap.set(q.id, q);
+      });
+    });
+
+    exercise.sections = sections.map((sec, secIdx) => ({
+      id: sec.id || `sec-${Date.now()}-${secIdx}`,
+      title: sec.title || '',
+      questions: (sec.questions || []).map((q: any, qIdx: number) => {
+        const existingQ = q.id ? existingQuestionMap.get(q.id) : null;
+        return {
+          id: q.id || `q-${Date.now()}-${qIdx}`,
+          type: q.type || existingQ?.type || 'multiple_choice',
+          prompt: q.prompt !== undefined ? q.prompt : existingQ?.prompt,
+          options: q.options !== undefined ? q.options : existingQ?.options,
+          // BẢO TOÀN ĐÁP ÁN ĐÚNG CỦA CÂU HỎI ĐÃ TẠO
+          correctAnswer: existingQ ? existingQ.correctAnswer : q.correctAnswer,
+          explanation: q.explanation !== undefined ? q.explanation : existingQ?.explanation,
+          audioUrl: q.audioUrl !== undefined ? q.audioUrl : existingQ?.audioUrl
+        };
+      })
+    }));
+  }
 
   exercises[index] = exercise;
   db.update('exercises', exercises);
 
   return res.status(200).json({
     success: true,
-    message: 'Cập nhật nhóm bài tập thành công!',
+    message: 'Cập nhật nhóm bài tập thành công! (Nội dung câu hỏi và câu trả lời đã được cập nhật, đáp án đúng được bảo toàn)',
     data: exercise
   });
 };
+
 
 export const deleteExercise = (req: Request, res: Response) => {
   const { id } = req.params;

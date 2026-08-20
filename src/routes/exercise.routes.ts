@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getExercises, createExercise, updateExercise, deleteExercise } from '../controllers/exercise.controller';
+import { getExercises, getExerciseById, createExercise, updateExercise, deleteExercise } from '../controllers/exercise.controller';
 import { authenticateToken, requireRoles } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -42,6 +42,30 @@ router.use(authenticateToken, requireRoles('ADMIN', 'TEACHER'));
  *         description: Danh sách nhóm bài tập.
  */
 router.get('/', getExercises);
+
+/**
+ * @swagger
+ * /api/v1/exercises/{id}:
+ *   get:
+ *     summary: Xem chi tiết 1 nhóm bài tập theo ID (Sections, 5 loại câu hỏi, options, audioUrl) - Admin & Giáo viên
+ *     tags: [Exercises Builder Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: ex-group-1
+ *     responses:
+ *       200:
+ *         description: Trả về chi tiết nhóm bài tập bao gồm sections và các dạng câu hỏi.
+ *       404:
+ *         description: Nhóm bài tập không tồn tại.
+ */
+router.get('/:id', getExerciseById);
+
 
 /**
  * @swagger
