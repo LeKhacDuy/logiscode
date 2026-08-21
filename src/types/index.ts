@@ -51,6 +51,7 @@ export interface Question {
 export interface ExerciseSection {
   id: string;
   title: string;
+  passage?: string; // Đoạn văn đọc hiểu (Reading Passage)
   questions: Question[];
 }
 
@@ -67,6 +68,9 @@ export interface ExerciseGroup {
 export interface SubmissionAnswer {
   questionId: string;
   answer: any;
+  isCorrect?: boolean;
+  correctAnswer?: string | string[];
+  explanation?: string;
 }
 
 export interface Submission {
@@ -76,11 +80,15 @@ export interface Submission {
   studentId: string;
   answers: SubmissionAnswer[];
   audioBlobUrl?: string; // For speaking exercise upload
-  score?: number;
+  score?: number; // Điểm tổng kết do giáo viên chấm (0-100)
+  autoScore?: number; // Điểm tự động tính cho các câu trắc nghiệm/điền từ (0-100)
+  correctCount?: number; // Số câu đúng
+  totalQuestions?: number; // Tổng số câu
   feedback?: string;
   isLate: boolean;
   submittedAt: string;
 }
+
 
 export interface SelfStudy {
   id: string;

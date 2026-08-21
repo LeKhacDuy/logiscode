@@ -91,33 +91,21 @@ export const updateExercise = (req: Request, res: Response) => {
   if (name) exercise.name = name.trim();
   if (status) exercise.status = status;
 
-  // QUY TẮC NGHIỆP VỤ:
-  // - Chỉ cập nhật được nội dung câu hỏi và câu trả lời đã được tạo (tránh bị ảnh hưởng bởi các khóa đã được gán vào lớp học)
-  // - Không được sửa/xoá đáp án đúng (bảo toàn correctAnswer ban đầu).
+  // QUY TẮC MỚI (Được sửa các buổi đã gán, sửa câu hỏi, câu trả lời, sửa đáp án đúng):
   if (sections && Array.isArray(sections)) {
-    const existingQuestionMap = new Map<string, any>();
-    exercise.sections?.forEach(sec => {
-      sec.questions?.forEach(q => {
-        if (q.id) existingQuestionMap.set(q.id, q);
-      });
-    });
-
     exercise.sections = sections.map((sec, secIdx) => ({
       id: sec.id || `sec-${Date.now()}-${secIdx}`,
       title: sec.title || '',
-      questions: (sec.questions || []).map((q: any, qIdx: number) => {
-        const existingQ = q.id ? existingQuestionMap.get(q.id) : null;
-        return {
-          id: q.id || `q-${Date.now()}-${qIdx}`,
-          type: q.type || existingQ?.type || 'multiple_choice',
-          prompt: q.prompt !== undefined ? q.prompt : existingQ?.prompt,
-          options: q.options !== undefined ? q.options : existingQ?.options,
-          // BẢO TOÀN ĐÁP ÁN ĐÚNG CỦA CÂU HỎI ĐÃ TẠO
-          correctAnswer: existingQ ? existingQ.correctAnswer : q.correctAnswer,
-          explanation: q.explanation !== undefined ? q.explanation : existingQ?.explanation,
-          audioUrl: q.audioUrl !== undefined ? q.audioUrl : existingQ?.audioUrl
-        };
-      })
+      passage: sec.passage || undefined,
+      questions: (sec.questions || []).map((q: any, qIdx: number) => ({
+        id: q.id || `q-${Date.now()}-${qIdx}`,
+        type: q.type || 'multiple_choice',
+        prompt: q.prompt !== undefined ? q.prompt : '',
+        options: Array.isArray(q.options) ? q.options : undefined,
+        correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : undefined,
+        explanation: q.explanation !== undefined ? q.explanation : undefined,
+        audioUrl: q.audioUrl !== undefined ? q.audioUrl : undefined
+      }))
     }));
   }
 
@@ -126,10 +114,11 @@ export const updateExercise = (req: Request, res: Response) => {
 
   return res.status(200).json({
     success: true,
-    message: 'Cập nhật nhóm bài tập thành công! (Nội dung câu hỏi và câu trả lời đã được cập nhật, đáp án đúng được bảo toàn)',
+    message: 'Cập nhật nhóm bài tập thành công! (Cho phép cập nhật câu hỏi, câu trả lời và đáp án đúng)',
     data: exercise
   });
 };
+
 
 
 export const deleteExercise = (req: Request, res: Response) => {

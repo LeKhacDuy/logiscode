@@ -126,14 +126,74 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
   const deadlineDate = new Date(createdDate.getTime() + sessionNum * 7 * 24 * 60 * 60 * 1000);
   const isLate = now > deadlineDate;
 
+  // TÌM BÀI TẬP CỦA BUỔI ĐỂ SO KHỚP ĐÁP ÁN ĐÚNG VÀ CHẤM ĐIỂM TỰ ĐỘNG
+  const courses = db.get('courses');
+  const course = courses.find(c => c.id === cls?.courseId);
+  const exerciseGroupId = course?.sessionExerciseGroupIds?.[sessionNum] || 'ex-group-1';
+  const exercises = db.get('exercises');
+  const exerciseGroup = exercises.find(ex => ex.id === exerciseGroupId) || exercises[0];
+
+  // Map all questions in the exercise group
+  const questionMap = new Map<string, any>();
+  let totalObjectiveQuestions = 0;
+  if (exerciseGroup && exerciseGroup.sections) {
+    exerciseGroup.sections.forEach(sec => {
+      sec.questions?.forEach(q => {
+        questionMap.set(q.id, q);
+        if (['multiple_choice', 'fill_blank', 'listening'].includes(q.type) && q.correctAnswer) {
+          totalObjectiveQuestions++;
+        }
+      });
+    });
+  }
+
+  // Grade student answers
+  let correctCount = 0;
+  const gradedAnswers = (answers || []).map((ans: any) => {
+    const q = questionMap.get(ans.questionId);
+    if (q && q.correctAnswer) {
+      const studentAnsStr = String(ans.answer || '').trim().toLowerCase();
+      let isCorrect = false;
+      if (Array.isArray(q.correctAnswer)) {
+        isCorrect = q.correctAnswer.some((ca: string) => String(ca).trim().toLowerCase() === studentAnsStr);
+      } else {
+        // Also support matching letter like "B" with "B. Hanoi"
+        const correctStr = String(q.correctAnswer).trim().toLowerCase();
+        isCorrect = studentAnsStr === correctStr || (studentAnsStr.length === 1 && correctStr.startsWith(studentAnsStr));
+      }
+
+      if (isCorrect) correctCount++;
+
+      return {
+        questionId: ans.questionId,
+        answer: ans.answer,
+        isCorrect,
+        correctAnswer: q.correctAnswer,
+        explanation: q.explanation || ''
+      };
+    }
+
+    return {
+      questionId: ans.questionId,
+      answer: ans.answer
+    };
+  });
+
+  const autoScore = totalObjectiveQuestions > 0 ? Math.round((correctCount / totalObjectiveQuestions) * 100) : undefined;
+
   const newSubmission: Submission = {
     id: existingSubIndex !== -1 ? submissions[existingSubIndex].id : `sub-${Date.now()}`,
     classId,
     sessionId: sessionNum,
     studentId: user.id,
-    answers: answers || [],
+    answers: gradedAnswers,
     audioBlobUrl: audioBlobUrl || undefined,
-    score: existingSubIndex !== -1 ? submissions[existingSubIndex].score : undefined,
+    score: existingSubIndex !== -1 && submissions[existingSubIndex].score !== undefined 
+      ? submissions[existingSubIndex].score 
+      : autoScore,
+    autoScore,
+    correctCount,
+    totalQuestions: answers ? answers.length : 0,
     feedback: existingSubIndex !== -1 ? submissions[existingSubIndex].feedback : undefined,
     isLate,
     submittedAt: now.toISOString()
@@ -149,11 +209,17 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
 
   return res.status(200).json({
     success: true,
-    message: isLate ? 'Nộp bài thành công (Ghi nhận: Nộp quá hạn)!' : 'Nộp bài thành công!',
+    message: isLate 
+      ? `Nộp bài thành công (Ghi nhận: Nộp quá hạn)! Điểm trắc nghiệm tự động: ${autoScore !== undefined ? autoScore + '/100' : 'Đang chờ GV chấm'}` 
+      : `Nộp bài thành công! Điểm trắc nghiệm tự động: ${autoScore !== undefined ? autoScore + '/100' : 'Đang chờ GV chấm'}`,
     isLate,
+    autoScore,
+    correctCount,
+    totalQuestions: answers ? answers.length : 0,
     data: newSubmission
   });
 };
+
 
 // 4. Grade Submission (Tab 1 - Teacher)
 export const gradeSubmission = (req: AuthenticatedRequest, res: Response) => {
