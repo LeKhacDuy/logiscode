@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   getSessions,
   getSessionExercise,
+  getSessionSubmissions,
   submitSessionExercise,
   gradeSubmission,
   getSelfStudy,
@@ -14,6 +15,7 @@ import { authenticateToken, requireRoles } from '../middlewares/auth.middleware'
 const router = Router({ mergeParams: true });
 
 router.use(authenticateToken);
+
 
 /**
  * @swagger
@@ -107,9 +109,39 @@ router.post('/:sessionId/submit', requireRoles('STUDENT'), submitSessionExercise
 
 /**
  * @swagger
+ * /api/v1/classes/{classId}/sessions/{sessionId}/submissions:
+ *   get:
+ *     summary: Tab 1 - Xem danh sách bài nộp của toàn lớp (Giáo viên / Admin xem tên học viên, bài làm, file âm thanh, trạng thái chấm)
+ *     tags: [Sessions & Lesson Details]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Trả về danh sách bài nộp của cả lớp cho buổi học.
+ */
+router.get(
+  '/:sessionId/submissions',
+  requireRoles('TEACHER', 'ADMIN'),
+  getSessionSubmissions
+);
+
+/**
+ * @swagger
  * /api/v1/classes/{classId}/sessions/{sessionId}/submissions/{submissionId}/grade:
  *   post:
  *     summary: Tab 1 - Mở Popup Chấm bài (Giáo viên nhập điểm 0-100 & nhận xét)
+
  *     tags: [Sessions & Lesson Details]
  *     security:
  *       - bearerAuth: []

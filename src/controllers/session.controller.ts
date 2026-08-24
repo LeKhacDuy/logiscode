@@ -221,7 +221,40 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
 };
 
 
-// 4. Grade Submission (Tab 1 - Teacher)
+// 3.5 Get all submissions of a session (Teacher & Admin view)
+export const getSessionSubmissions = (req: AuthenticatedRequest, res: Response) => {
+  const { classId, sessionId } = req.params;
+  const sessionNum = parseInt(sessionId);
+
+  const classes = db.get('classes');
+  const cls = classes.find(c => c.id === classId);
+  if (!cls) {
+    return res.status(404).json({ success: false, message: 'Lớp học không tồn tại.' });
+  }
+
+  const users = db.get('users');
+  const submissions = db.get('submissions').filter(s => s.classId === classId && s.sessionId === sessionNum);
+
+  const enrichedSubmissions = submissions.map(sub => {
+    const student = users.find(u => u.id === sub.studentId);
+    return {
+      ...sub,
+      studentName: student ? student.fullname : 'Học viên',
+      studentEmail: student ? student.email : '',
+      gradingStatus: sub.score !== undefined ? 'Đã chấm' : 'Chưa chấm'
+    };
+  });
+
+  return res.status(200).json({
+    success: true,
+    classId,
+    sessionId: sessionNum,
+    totalSubmissions: enrichedSubmissions.length,
+    data: enrichedSubmissions
+  });
+};
+
+// 4. Grade Submission (Tab 1 - Teacher mở Popup chấm điểm và nhận xét)
 export const gradeSubmission = (req: AuthenticatedRequest, res: Response) => {
   const { submissionId } = req.params;
   const { score, feedback } = req.body;
@@ -248,6 +281,7 @@ export const gradeSubmission = (req: AuthenticatedRequest, res: Response) => {
     data: submissions[subIndex]
   });
 };
+
 
 // 5. Get Self-Study content (Tab 2)
 export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
