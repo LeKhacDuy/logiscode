@@ -60,7 +60,22 @@ export const createExercise = (req: Request, res: Response) => {
     id: `ex-group-${Date.now()}`,
     name: name.trim(),
     status: status === 'inactive' ? 'inactive' : 'active',
-    sections: Array.isArray(sections) ? sections : [],
+    sections: Array.isArray(sections)
+      ? sections.map((sec, secIdx) => ({
+          id: sec.id || `sec-${Date.now()}-${secIdx}`,
+          title: sec.title || '',
+          passage: sec.passage !== undefined ? sec.passage : (sec.content !== undefined ? sec.content : undefined), // Trường nhập đoạn văn (optional)
+          questions: (sec.questions || []).map((q: any, qIdx: number) => ({
+            id: q.id || `q-${Date.now()}-${qIdx}`,
+            type: q.type || 'multiple_choice',
+            prompt: q.prompt !== undefined ? q.prompt : '',
+            options: Array.isArray(q.options) ? q.options : undefined,
+            correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : undefined,
+            explanation: q.explanation !== undefined ? q.explanation : undefined,
+            audioUrl: q.audioUrl !== undefined ? q.audioUrl : undefined
+          }))
+        }))
+      : [],
     createdAt: new Date().toISOString()
   };
 
@@ -91,12 +106,12 @@ export const updateExercise = (req: Request, res: Response) => {
   if (name) exercise.name = name.trim();
   if (status) exercise.status = status;
 
-  // QUY TẮC MỚI (Được sửa các buổi đã gán, sửa câu hỏi, câu trả lời, sửa đáp án đúng):
+  // QUY TẮC: Cho phép cập nhật trường đoạn văn passage (optional), câu hỏi, câu trả lời, đáp án đúng
   if (sections && Array.isArray(sections)) {
     exercise.sections = sections.map((sec, secIdx) => ({
       id: sec.id || `sec-${Date.now()}-${secIdx}`,
       title: sec.title || '',
-      passage: sec.passage || undefined,
+      passage: sec.passage !== undefined ? sec.passage : (sec.content !== undefined ? sec.content : undefined), // Đoạn văn (optional)
       questions: (sec.questions || []).map((q: any, qIdx: number) => ({
         id: q.id || `q-${Date.now()}-${qIdx}`,
         type: q.type || 'multiple_choice',
@@ -114,10 +129,11 @@ export const updateExercise = (req: Request, res: Response) => {
 
   return res.status(200).json({
     success: true,
-    message: 'Cập nhật nhóm bài tập thành công! (Cho phép cập nhật câu hỏi, câu trả lời và đáp án đúng)',
+    message: 'Cập nhật nhóm bài tập thành công! (Bao gồm trường đoạn văn passage, câu hỏi, câu trả lời và đáp án đúng)',
     data: exercise
   });
 };
+
 
 
 

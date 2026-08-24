@@ -101,7 +101,11 @@ router.get('/:id', getExerciseById);
  *                       example: sec-1
  *                     title:
  *                       type: string
- *                       example: Phần 1: Listening & Speaking
+ *                       example: Phần 1: Reading Comprehension & Trắc nghiệm
+ *                     passage:
+ *                       type: string
+ *                       description: Đoạn văn đọc hiểu hoặc ngữ cảnh của Section (Không bắt buộc / Optional)
+ *                       example: Professors and other professionals will not outsource language awareness to software, though...
  *                     questions:
  *                       type: array
  *                       items:
@@ -109,17 +113,26 @@ router.get('/:id', getExerciseById);
  *                         properties:
  *                           id:
  *                             type: string
- *                             example: q-spk-1
+ *                             example: q-mc-1
  *                           type:
  *                             type: string
  *                             enum: [multiple_choice, essay, fill_blank, listening, speaking]
- *                             example: speaking
+ *                             example: multiple_choice
  *                           prompt:
  *                             type: string
- *                             example: Hãy thu âm đoạn phát biểu giới thiệu sở thích bản thân.
+ *                             example: What does the reader learn about the conversation in the first paragraph?
+ *                           options:
+ *                             type: array
+ *                             items:
+ *                               type: string
+ *                             example: ["A. First option", "B. Second option", "C. Third option", "D. Fourth option"]
+ *                           correctAnswer:
+ *                             type: string
+ *                             example: A. First option
  *                           explanation:
  *                             type: string
- *                             example: Đánh giá ngữ điệu và phát âm chuẩn.
+ *                             example: Đoạn 1 nêu rõ về rào cản ngôn ngữ...
+
  *     responses:
  *       201:
  *         description: Tạo bài tập thành công.
