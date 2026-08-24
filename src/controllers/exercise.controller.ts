@@ -101,12 +101,41 @@ export const updateExercise = (req: Request, res: Response) => {
     return res.status(404).json({ success: false, message: 'Nhóm bài tập không tồn tại.' });
   }
 
+  // 1. Lưu lại bản sao bài tập cũ (Old Snapshot)
+  const currentOldExercise = JSON.parse(JSON.stringify(exercises[index]));
+
+  // 2. Tự động đóng băng bản snapshot bài tập cũ cho tất cả các lớp đã qua buổi học đó (đã nộp bài/đã chấm)
+  // để lịch sử bài làm và điểm số của lớp cũ không bao giờ bị ảnh hưởng!
+  const submissions = db.get('submissions');
+  const courses = db.get('courses');
+  const classes = db.get('classes');
+  const snapshots = db.get('exerciseSnapshots') || {};
+
+  classes.forEach(cls => {
+    const course = courses.find(c => c.id === cls.courseId);
+    if (!course || !course.sessionExerciseGroupIds) return;
+
+    Object.entries(course.sessionExerciseGroupIds).forEach(([sessionKey, mappedExId]) => {
+      if (mappedExId === id) {
+        const sessionNum = parseInt(sessionKey);
+        const snapshotKey = `${cls.id}_${sessionNum}`;
+        const hasSubmissions = submissions.some(s => s.classId === cls.id && s.sessionId === sessionNum);
+
+        if (hasSubmissions && !snapshots[snapshotKey]) {
+          snapshots[snapshotKey] = currentOldExercise;
+        }
+      }
+    });
+  });
+
+  db.update('exerciseSnapshots', snapshots);
+
   const exercise = exercises[index];
 
   if (name) exercise.name = name.trim();
   if (status) exercise.status = status;
 
-  // QUY TẮC: Cho phép cập nhật trường đoạn văn passage (optional), câu hỏi, câu trả lời, đáp án đúng
+  // QUY TẮC: Cho phép cập nhật trường đoạn văn passage (optional), câu hỏi, câu trả lời, đáp án đúng cho các lớp sau / chưa học buổi này
   if (sections && Array.isArray(sections)) {
     exercise.sections = sections.map((sec, secIdx) => ({
       id: sec.id || `sec-${Date.now()}-${secIdx}`,
@@ -129,10 +158,11 @@ export const updateExercise = (req: Request, res: Response) => {
 
   return res.status(200).json({
     success: true,
-    message: 'Cập nhật nhóm bài tập thành công! (Bao gồm trường đoạn văn passage, câu hỏi, câu trả lời và đáp án đúng)',
+    message: 'Cập nhật nhóm bài tập thành công! (Thay đổi áp dụng cho các lớp mới/chưa học, các lớp đã học được bảo toàn lịch sử)',
     data: exercise
   });
 };
+
 
 
 
