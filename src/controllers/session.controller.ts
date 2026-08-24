@@ -88,7 +88,7 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
   if (!exerciseGroup) {
     const courses = db.get('courses');
     const course = courses.find(c => c.id === cls.courseId);
-    const exerciseGroupId = course?.sessionExerciseGroupIds?.[sessionNum] || course?.sessionExerciseGroupIds?.[String(sessionNum)] || 'ex-group-1';
+    const exerciseGroupId = course?.sessionExerciseGroupIds?.[sessionNum] || 'ex-group-1';
     const exercises = db.get('exercises');
     exerciseGroup = exercises.find(ex => ex.id === exerciseGroupId) || exercises[0];
   }
@@ -142,7 +142,7 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
   if (!exerciseGroup) {
     const courses = db.get('courses');
     const course = courses.find(c => c.id === cls?.courseId);
-    const exerciseGroupId = course?.sessionExerciseGroupIds?.[sessionNum] || course?.sessionExerciseGroupIds?.[String(sessionNum)] || 'ex-group-1';
+    const exerciseGroupId = course?.sessionExerciseGroupIds?.[sessionNum] || 'ex-group-1';
     const exercises = db.get('exercises');
     const currentMasterExercise = exercises.find(ex => ex.id === exerciseGroupId) || exercises[0];
 
@@ -151,6 +151,7 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
     snapshots[snapshotKey] = exerciseGroup;
     db.update('exerciseSnapshots', snapshots);
   }
+
 
 
 

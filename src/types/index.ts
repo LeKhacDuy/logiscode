@@ -20,9 +20,10 @@ export interface Course {
   name: string;
   totalSessions: number;
   level: CourseLevel;
-  sessionExerciseGroupIds: Record<number, string>; // session number -> exerciseGroupId
+  sessionExerciseGroupIds: Record<string | number, string>; // session number -> exerciseGroupId
   createdAt: string;
 }
+
 
 export type ClassStatus = 'schedule' | 'ongoing' | 'ended';
 
