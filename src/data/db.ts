@@ -10,6 +10,7 @@ export interface DatabaseSchema {
   exercises: ExerciseGroup[];
   submissions: Submission[];
   selfStudies: SelfStudy[];
+  exerciseSnapshots: Record<string, ExerciseGroup>; // key: `${classId}_${sessionId}` -> frozen exercise snapshot
 }
 
 const DB_FILE_PATH = process.env.DATA_PATH || path.join(__dirname, 'db_data.json');
@@ -18,7 +19,9 @@ const DB_FILE_PATH = process.env.DATA_PATH || path.join(__dirname, 'db_data.json
 const defaultPasswordHash = bcrypt.hashSync('123456', 10);
 
 const initialSeedData: DatabaseSchema = {
+  exerciseSnapshots: {},
   users: [
+
     {
       id: 'u-admin-1',
       email: 'admin@edumanage.com',

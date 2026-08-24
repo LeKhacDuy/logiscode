@@ -78,12 +78,20 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     return res.status(404).json({ success: false, message: 'Lớp học không tồn tại.' });
   }
 
-  const courses = db.get('courses');
-  const course = courses.find(c => c.id === cls.courseId);
-  const exerciseGroupId = course?.sessionExerciseGroupIds?.[sessionNum] || 'ex-group-1';
+  // BẢO TOÀN LỊCH SỬ BÀI TẬP (SNAPSHOT ISOLATION PATTERN):
+  // Nếu lớp này đã có bài nộp ở buổi này -> Sử dụng bản Snapshot bài tập lúc làm bài (không bị đổi khi bài tập gốc bị sửa sau này).
+  // Nếu lớp chưa tới buổi này / chưa ai nộp -> Lấy bản cập nhật mới nhất từ kho bài tập.
+  const snapshotKey = `${classId}_${sessionNum}`;
+  const snapshots = db.get('exerciseSnapshots') || {};
+  let exerciseGroup = snapshots[snapshotKey];
 
-  const exercises = db.get('exercises');
-  const exerciseGroup = exercises.find(ex => ex.id === exerciseGroupId) || exercises[0];
+  if (!exerciseGroup) {
+    const courses = db.get('courses');
+    const course = courses.find(c => c.id === cls.courseId);
+    const exerciseGroupId = course?.sessionExerciseGroupIds?.[sessionNum] || 'ex-group-1';
+    const exercises = db.get('exercises');
+    exerciseGroup = exercises.find(ex => ex.id === exerciseGroupId) || exercises[0];
+  }
 
   const submissions = db.get('submissions').filter(s => s.classId === classId && s.sessionId === sessionNum);
 
@@ -126,12 +134,24 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
   const deadlineDate = new Date(createdDate.getTime() + sessionNum * 7 * 24 * 60 * 60 * 1000);
   const isLate = now > deadlineDate;
 
-  // TÌM BÀI TẬP CỦA BUỔI ĐỂ SO KHỚP ĐÁP ÁN ĐÚNG VÀ CHẤM ĐIỂM TỰ ĐỘNG
-  const courses = db.get('courses');
-  const course = courses.find(c => c.id === cls?.courseId);
-  const exerciseGroupId = course?.sessionExerciseGroupIds?.[sessionNum] || 'ex-group-1';
-  const exercises = db.get('exercises');
-  const exerciseGroup = exercises.find(ex => ex.id === exerciseGroupId) || exercises[0];
+  // LƯU / ĐÓNG BĂNG BẢN SNAPSHOT BÀI TẬP TẠI THỜI ĐIỂM LỚP HỌC LÀM BÀI:
+  const snapshotKey = `${classId}_${sessionNum}`;
+  const snapshots = db.get('exerciseSnapshots') || {};
+  let exerciseGroup = snapshots[snapshotKey];
+
+  if (!exerciseGroup) {
+    const courses = db.get('courses');
+    const course = courses.find(c => c.id === cls?.courseId);
+    const exerciseGroupId = course?.sessionExerciseGroupIds?.[sessionNum] || 'ex-group-1';
+    const exercises = db.get('exercises');
+    const currentMasterExercise = exercises.find(ex => ex.id === exerciseGroupId) || exercises[0];
+
+    // Đóng băng snapshot bản bài tập lúc lớp bắt đầu nộp bài
+    exerciseGroup = JSON.parse(JSON.stringify(currentMasterExercise));
+    snapshots[snapshotKey] = exerciseGroup;
+    db.update('exerciseSnapshots', snapshots);
+  }
+
 
   // Map all questions in the exercise group
   const questionMap = new Map<string, any>();
