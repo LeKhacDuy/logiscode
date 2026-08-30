@@ -181,7 +181,7 @@ const initialSeedData: DatabaseSchema = {
               id: 'q-fb-1',
               type: 'fill_blank',
               prompt: 'Fill in the correct prepositions: "He has been working here _____ 2020."',
-              correctAnswer: 'since',
+              correctAnswer: ['since', 'from'],
               explanation: 'Use "since" for a specific point in time (2020), and "for" for a duration of time.'
             }
           ]
@@ -189,12 +189,12 @@ const initialSeedData: DatabaseSchema = {
         {
           id: 'sec-2',
           title: 'Phần 2: Listening & Speaking Skills',
+          audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Link audio của Section
           questions: [
             {
               id: 'q-lis-1',
-              type: 'listening',
+              type: 'multiple_choice',
               prompt: 'Nghe đoạn hội thoại sau và chọn câu trả lời đúng:',
-              audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
               options: [
                 'A. The meeting will start at 9:00 AM.',
                 'B. The meeting is postponed until next Monday.',
@@ -204,6 +204,7 @@ const initialSeedData: DatabaseSchema = {
               correctAnswer: 'C. The meeting takes place in Room 402.',
               explanation: 'In the audio, the speaker confirms Room 402 is reserved for the 10:00 AM session.'
             },
+
             {
               id: 'q-spk-1',
               type: 'speaking',

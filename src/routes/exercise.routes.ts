@@ -41,7 +41,7 @@ router.use(authenticateToken, requireRoles('ADMIN', 'TEACHER'));
  *       200:
  *         description: Danh sách nhóm bài tập.
  *   post:
- *     summary: Thêm nhóm bài tập mới (Tạo Section & 5 dạng bài Trắc nghiệm, Tự luận, Điền từ, Listening, Speaking, trường passage optional)
+ *     summary: Thêm nhóm bài tập mới (Mỗi section có passage và audioUrl optional, câu hỏi gồm 4 dạng multiple_choice, essay, fill_blank nhiều đáp án, speaking)
  *     tags: [Exercises Builder Management]
  *     security:
  *       - bearerAuth: []
@@ -56,7 +56,7 @@ router.use(authenticateToken, requireRoles('ADMIN', 'TEACHER'));
  *             properties:
  *               name:
  *                 type: string
- *                 example: 'Nhóm bài tập Buổi 1: IELTS Reading & Listening Mastery'
+ *                 example: 'Nhóm bài tập Buổi 1: IELTS Foundation Mastery'
  *               status:
  *                 type: string
  *                 enum: [active, inactive]
@@ -71,11 +71,15 @@ router.use(authenticateToken, requireRoles('ADMIN', 'TEACHER'));
  *                       example: sec-1
  *                     title:
  *                       type: string
- *                       example: 'Phần 1: Reading Comprehension & Trắc nghiệm'
+ *                       example: 'Section 1: Listening & Trắc nghiệm'
  *                     passage:
  *                       type: string
- *                       description: Đoạn văn đọc hiểu hoặc ngữ cảnh bài tập (Optional - không bắt buộc)
- *                       example: 'Professors and other professionals will not outsource language awareness to software, though. If the technology matures into seamless speech translation, it will actually add value to language skills...'
+ *                       description: Đoạn văn đọc hiểu hoặc ngữ cảnh của Section (Optional - không bắt buộc)
+ *                       example: 'Đoạn văn đọc hiểu hoặc hướng dẫn làm bài...'
+ *                     audioUrl:
+ *                       type: string
+ *                       description: Link file nghe cho cả Section (Optional - dành cho Section Luyện nghe)
+ *                       example: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
  *                     questions:
  *                       type: array
  *                       items:
@@ -86,28 +90,25 @@ router.use(authenticateToken, requireRoles('ADMIN', 'TEACHER'));
  *                         properties:
  *                           id:
  *                             type: string
- *                             example: q-mc-1
+ *                             example: q-1
  *                           type:
  *                             type: string
- *                             enum: [multiple_choice, essay, fill_blank, listening, speaking]
- *                             example: multiple_choice
+ *                             enum: [multiple_choice, essay, fill_blank, speaking]
+ *                             example: fill_blank
  *                           prompt:
  *                             type: string
- *                             example: 'What does the reader learn about the conversation in the first paragraph?'
+ *                             example: 'Water boils at [___] degrees Celsius.'
  *                           options:
  *                             type: array
  *                             items:
  *                               type: string
- *                             example: ['A. Option 1', 'B. Option 2', 'C. Option 3', 'D. Option 4']
+ *                             example: ['A. 90', 'B. 100', 'C. 110', 'D. 120']
  *                           correctAnswer:
- *                             type: string
- *                             example: 'A. Option 1'
+ *                             description: Chuỗi hoặc mảng nhiều đáp án chấp nhận được cho fill_blank
+ *                             example: ['100', 'one hundred', '100 degrees']
  *                           explanation:
  *                             type: string
- *                             example: 'Đoạn 1 nêu rõ về rào cản ngôn ngữ.'
- *                           audioUrl:
- *                             type: string
- *                             example: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
+ *                             example: 'Nhiệt độ sôi của nước ở áp suất tiêu chuẩn là 100°C.'
  *     responses:
  *       201:
  *         description: Tạo bài tập thành công.
@@ -119,7 +120,7 @@ router.post('/', createExercise);
  * @swagger
  * /api/v1/exercises/{id}:
  *   get:
- *     summary: Xem chi tiết 1 nhóm bài tập theo ID (Sections, 5 loại câu hỏi, options, audioUrl) - Admin & Giáo viên
+ *     summary: Xem chi tiết 1 nhóm bài tập theo ID (Sections, 4 loại câu hỏi, options, audioUrl của Section) - Admin & Giáo viên
  *     tags: [Exercises Builder Management]
  *     security:
  *       - bearerAuth: []
@@ -136,7 +137,7 @@ router.post('/', createExercise);
  *       404:
  *         description: Nhóm bài tập không tồn tại.
  *   put:
- *     summary: Sửa nhóm bài tập (Sửa câu hỏi, sửa phương án, sửa đáp án đúng correctAnswer, sửa đoạn văn passage)
+ *     summary: Sửa nhóm bài tập (Sửa section passage, section audioUrl, câu hỏi, đáp án đúng correctAnswer nhiều giá trị)
  *     tags: [Exercises Builder Management]
  *     security:
  *       - bearerAuth: []
@@ -171,10 +172,13 @@ router.post('/', createExercise);
  *                       example: sec-1
  *                     title:
  *                       type: string
- *                       example: 'Phần 1: Trắc nghiệm cập nhật'
+ *                       example: 'Phần 1: Luyện nghe & Điền từ cập nhật'
  *                     passage:
  *                       type: string
  *                       example: 'Đoạn văn đọc hiểu cập nhật mới...'
+ *                     audioUrl:
+ *                       type: string
+ *                       example: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
  *                     questions:
  *                       type: array
  *                       items:
@@ -182,28 +186,24 @@ router.post('/', createExercise);
  *                         properties:
  *                           id:
  *                             type: string
- *                             example: q-mc-1
+ *                             example: q-fb-1
  *                           type:
  *                             type: string
- *                             enum: [multiple_choice, essay, fill_blank, listening, speaking]
- *                             example: multiple_choice
+ *                             enum: [multiple_choice, essay, fill_blank, speaking]
+ *                             example: fill_blank
  *                           prompt:
  *                             type: string
- *                             example: 'Nội dung câu hỏi mới đã sửa'
+ *                             example: 'He has been studying here [___] 2020.'
  *                           options:
  *                             type: array
  *                             items:
  *                               type: string
- *                             example: ['A. Đáp án 1', 'B. Đáp án 2']
+ *                             example: ['A. since', 'B. for']
  *                           correctAnswer:
- *                             type: string
- *                             example: 'B. Đáp án 2'
+ *                             example: ['since', 'from', 'since then']
  *                           explanation:
  *                             type: string
  *                             example: 'Giải thích câu đúng mới...'
- *                           audioUrl:
- *                             type: string
- *                             example: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
  *     responses:
  *       200:
  *         description: Cập nhật bài tập thành công.

@@ -64,15 +64,15 @@ export const createExercise = (req: Request, res: Response) => {
       ? sections.map((sec, secIdx) => ({
           id: sec.id || `sec-${Date.now()}-${secIdx}`,
           title: sec.title || '',
-          passage: sec.passage !== undefined ? sec.passage : (sec.content !== undefined ? sec.content : undefined), // Trường nhập đoạn văn (optional)
+          passage: sec.passage !== undefined ? sec.passage : (sec.content !== undefined ? sec.content : undefined), // Đoạn văn (optional)
+          audioUrl: sec.audioUrl !== undefined ? sec.audioUrl : undefined, // Link audio của Section (optional)
           questions: (sec.questions || []).map((q: any, qIdx: number) => ({
             id: q.id || `q-${Date.now()}-${qIdx}`,
             type: q.type || 'multiple_choice',
             prompt: q.prompt !== undefined ? q.prompt : '',
             options: Array.isArray(q.options) ? q.options : undefined,
-            correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : undefined,
-            explanation: q.explanation !== undefined ? q.explanation : undefined,
-            audioUrl: q.audioUrl !== undefined ? q.audioUrl : undefined
+            correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : undefined, // string hoặc string[] cho fill_blank
+            explanation: q.explanation !== undefined ? q.explanation : undefined
           }))
         }))
       : [],
@@ -135,20 +135,20 @@ export const updateExercise = (req: Request, res: Response) => {
   if (name) exercise.name = name.trim();
   if (status) exercise.status = status;
 
-  // QUY TẮC: Cho phép cập nhật trường đoạn văn passage (optional), câu hỏi, câu trả lời, đáp án đúng cho các lớp sau / chưa học buổi này
+  // QUY TẮC: Cho phép cập nhật trường đoạn văn passage (optional), audioUrl (optional), câu hỏi, câu trả lời, đáp án đúng
   if (sections && Array.isArray(sections)) {
     exercise.sections = sections.map((sec, secIdx) => ({
       id: sec.id || `sec-${Date.now()}-${secIdx}`,
       title: sec.title || '',
       passage: sec.passage !== undefined ? sec.passage : (sec.content !== undefined ? sec.content : undefined), // Đoạn văn (optional)
+      audioUrl: sec.audioUrl !== undefined ? sec.audioUrl : undefined, // Link audio cho cả Section (optional)
       questions: (sec.questions || []).map((q: any, qIdx: number) => ({
         id: q.id || `q-${Date.now()}-${qIdx}`,
         type: q.type || 'multiple_choice',
         prompt: q.prompt !== undefined ? q.prompt : '',
         options: Array.isArray(q.options) ? q.options : undefined,
-        correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : undefined,
-        explanation: q.explanation !== undefined ? q.explanation : undefined,
-        audioUrl: q.audioUrl !== undefined ? q.audioUrl : undefined
+        correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : undefined, // string hoặc string[] cho fill_blank
+        explanation: q.explanation !== undefined ? q.explanation : undefined
       }))
     }));
   }
@@ -162,6 +162,7 @@ export const updateExercise = (req: Request, res: Response) => {
     data: exercise
   });
 };
+
 
 
 

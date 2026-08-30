@@ -37,24 +37,25 @@ export interface Class {
   createdAt: string;
 }
 
-export type QuestionType = 'multiple_choice' | 'essay' | 'fill_blank' | 'listening' | 'speaking';
+export type QuestionType = 'multiple_choice' | 'essay' | 'fill_blank' | 'speaking';
 
 export interface Question {
   id: string;
-  type: QuestionType;
+  type: QuestionType | string; // Cho phép tương thích ngược nếu còn dữ liệu cũ
   prompt: string;
   options?: string[];
-  correctAnswer?: string | string[];
+  correctAnswer?: string | string[]; // Hỗ trợ nhiều đáp án đúng chấp nhận được cho dạng fill_blank
   explanation?: string;
-  audioUrl?: string; // For listening
 }
 
 export interface ExerciseSection {
   id: string;
   title: string;
-  passage?: string; // Đoạn văn đọc hiểu (Reading Passage)
+  passage?: string; // Đoạn văn đọc hiểu (Reading Passage - optional)
+  audioUrl?: string; // Link file audio nghe cho cả Section (Section Audio - optional)
   questions: Question[];
 }
+
 
 export type ExerciseStatus = 'active' | 'inactive';
 

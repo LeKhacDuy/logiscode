@@ -174,12 +174,27 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
   const gradedAnswers = (answers || []).map((ans: any) => {
     const q = questionMap.get(ans.questionId);
     if (q && q.correctAnswer) {
-      const studentAnsStr = String(ans.answer || '').trim().toLowerCase();
       let isCorrect = false;
+
+      // XỬ LÝ NHIỀU ĐÁP ÁN ĐÚNG CHO DẠNG FILL_BLANK (Alternative valid answers hoặc Multiple Blanks)
       if (Array.isArray(q.correctAnswer)) {
-        isCorrect = q.correctAnswer.some((ca: string) => String(ca).trim().toLowerCase() === studentAnsStr);
+        if (Array.isArray(ans.answer)) {
+          // Trường hợp câu hỏi có nhiều ô trống và học viên gửi mảng câu trả lời
+          isCorrect = ans.answer.length === q.correctAnswer.length &&
+            ans.answer.every((subAns: any, idx: number) => {
+              const expected = q.correctAnswer[idx];
+              if (Array.isArray(expected)) {
+                return expected.some((exp: string) => String(exp).trim().toLowerCase() === String(subAns).trim().toLowerCase());
+              }
+              return String(expected).trim().toLowerCase() === String(subAns).trim().toLowerCase();
+            });
+        } else {
+          // Trường hợp 1 ô trống nhưng có nhiều đáp án chấp nhận được (vd: ["100", "one hundred", "100°C"])
+          const studentAnsStr = String(ans.answer || '').trim().toLowerCase();
+          isCorrect = q.correctAnswer.some((ca: string) => String(ca).trim().toLowerCase() === studentAnsStr);
+        }
       } else {
-        // Also support matching letter like "B" with "B. Hanoi"
+        const studentAnsStr = String(ans.answer || '').trim().toLowerCase();
         const correctStr = String(q.correctAnswer).trim().toLowerCase();
         isCorrect = studentAnsStr === correctStr || (studentAnsStr.length === 1 && correctStr.startsWith(studentAnsStr));
       }
@@ -200,6 +215,7 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
       answer: ans.answer
     };
   });
+
 
   const autoScore = totalObjectiveQuestions > 0 ? Math.round((correctCount / totalObjectiveQuestions) * 100) : undefined;
 
