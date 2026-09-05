@@ -31,6 +31,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // Swagger UI Documentation & FE Test Interface
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get('/api-docs.json', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
 
 // Healthcheck Route
 app.get('/api/v1/health', (req, res) => {
