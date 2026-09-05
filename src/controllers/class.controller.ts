@@ -9,38 +9,103 @@ export const getClasses = (req: AuthenticatedRequest, res: Response) => {
   const limit = parseInt(req.query.limit as string) || 10;
   const search = ((req.query.search as string) || '').toLowerCase().trim();
   const status = (req.query.status as ClassStatus) || undefined;
+  const userSearch = ((req.query.userSearch as string) || '').toLowerCase().trim();
+  const teacherSearch = ((req.query.teacherSearch as string) || '').toLowerCase().trim();
+  const studentSearch = ((req.query.studentSearch as string) || '').toLowerCase().trim();
 
   const allClasses = db.get('classes');
   const courses = db.get('courses');
   const users = db.get('users');
   const submissions = db.get('submissions');
 
-  let filteredClasses = allClasses;
+  // Map users for fast O(1) lookup
+  const userMap = new Map<string, any>();
+  users.forEach(u => userMap.set(u.id, u));
 
-  if (user.role === 'ADMIN') {
-    // ADMIN view all classes with search and status filter
-    if (search) {
-      filteredClasses = filteredClasses.filter(c => c.name.toLowerCase().includes(search));
-    }
-    if (status) {
-      filteredClasses = filteredClasses.filter(c => c.status === status);
-    }
-  } else if (user.role === 'TEACHER') {
-    // TEACHER view only assigned classes
-    filteredClasses = filteredClasses.filter(c => c.teacherId === user.id);
+  // 1. Phân quyền truy cập theo Role (Scope Filter):
+  let scopedClasses = allClasses;
+  if (user.role === 'TEACHER') {
+    // TEACHER: chỉ xem các lớp được phân công phụ trách
+    scopedClasses = scopedClasses.filter(c => c.teacherId === user.id);
   } else if (user.role === 'STUDENT') {
-    // STUDENT view only enrolled classes
-    filteredClasses = filteredClasses.filter(c => c.studentIds && c.studentIds.includes(user.id));
+    // STUDENT: chỉ xem các lớp mình tham gia
+    scopedClasses = scopedClasses.filter(c => c.studentIds && c.studentIds.includes(user.id));
+  }
+  // ADMIN: xem được toàn bộ các lớp học
+
+  // 2. Lọc theo Trạng thái lớp (Áp dụng cho CẢ ADMIN, GV và HV):
+  if (status) {
+    scopedClasses = scopedClasses.filter(c => c.status === status);
   }
 
-  // Calculate detailed info (Course name, Teacher name, Student count, Progress %)
+  // 3. Tìm kiếm linh hoạt (Search) - Áp dụng cho CẢ ADMIN, GV VÀ HV:
+  // - Tìm kiếm theo tên lớp, tên khóa học
+  // - Tìm kiếm theo Tên hoặc Email của GV / HV thuộc lớp đó
+  const filteredClasses = scopedClasses.filter(cls => {
+    const course = courses.find(c => c.id === cls.courseId);
+    const teacher = userMap.get(cls.teacherId);
+    const classStudents = (cls.studentIds || []).map(id => userMap.get(id)).filter(Boolean);
+
+    // 3a. Tìm kiếm chung (param `search`):
+    if (search) {
+      const matchClassName = cls.name.toLowerCase().includes(search);
+      const matchCourseName = course ? course.name.toLowerCase().includes(search) : false;
+      const matchTeacherName = teacher ? teacher.fullname.toLowerCase().includes(search) : false;
+      const matchTeacherEmail = teacher ? teacher.email.toLowerCase().includes(search) : false;
+      const matchStudent = classStudents.some(s =>
+        s.fullname.toLowerCase().includes(search) || s.email.toLowerCase().includes(search)
+      );
+
+      if (!matchClassName && !matchCourseName && !matchTeacherName && !matchTeacherEmail && !matchStudent) {
+        return false;
+      }
+    }
+
+    // 3b. Tìm kiếm theo Giáo viên hoặc Học viên thuộc lớp (param `userSearch`):
+    if (userSearch) {
+      const matchTeacher = teacher && (
+        teacher.fullname.toLowerCase().includes(userSearch) ||
+        teacher.email.toLowerCase().includes(userSearch)
+      );
+      const matchStudent = classStudents.some(s =>
+        s.fullname.toLowerCase().includes(userSearch) ||
+        s.email.toLowerCase().includes(userSearch)
+      );
+
+      if (!matchTeacher && !matchStudent) {
+        return false;
+      }
+    }
+
+    // 3c. Tìm kiếm chuyên biệt Giáo viên (param `teacherSearch`):
+    if (teacherSearch) {
+      const matchTeacher = teacher && (
+        teacher.fullname.toLowerCase().includes(teacherSearch) ||
+        teacher.email.toLowerCase().includes(teacherSearch)
+      );
+      if (!matchTeacher) return false;
+    }
+
+    // 3d. Tìm kiếm chuyên biệt Học viên (param `studentSearch`):
+    if (studentSearch) {
+      const matchStudent = classStudents.some(s =>
+        s.fullname.toLowerCase().includes(studentSearch) ||
+        s.email.toLowerCase().includes(studentSearch)
+      );
+      if (!matchStudent) return false;
+    }
+
+    return true;
+  });
+
+  // 4. Bổ sung thông tin chi tiết (Khóa học, Giáo viên, Danh sách học viên, Tiến độ %)
   const enrichedClasses = filteredClasses.map(cls => {
     const course = courses.find(c => c.id === cls.courseId);
-    const teacher = users.find(u => u.id === cls.teacherId);
+    const teacher = userMap.get(cls.teacherId);
+    const classStudents = (cls.studentIds || []).map(id => userMap.get(id)).filter(Boolean);
     const totalCourseSessions = course ? course.totalSessions : 12;
 
-    // Calculate completed sessions / progress
-    // Count max session number submitted in this class
+    // Tính số buổi đã hoàn thành / tiến độ lớp
     const classSubmissions = submissions.filter(s => s.classId === cls.id);
     const completedSessions = new Set(classSubmissions.map(s => s.sessionId)).size;
     const progressPercent = Math.round((completedSessions / totalCourseSessions) * 100);
@@ -52,6 +117,12 @@ export const getClasses = (req: AuthenticatedRequest, res: Response) => {
       teacherName: teacher ? teacher.fullname : 'Chưa phân công',
       teacherEmail: teacher ? teacher.email : '',
       studentCount: cls.studentIds ? cls.studentIds.length : 0,
+      students: classStudents.map(s => ({
+        id: s.id,
+        fullname: s.fullname,
+        email: s.email,
+        status: s.status
+      })),
       totalSessions: totalCourseSessions,
       completedSessions,
       progressText: `${completedSessions}/${totalCourseSessions} buổi`,

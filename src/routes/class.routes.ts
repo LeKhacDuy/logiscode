@@ -10,7 +10,7 @@ router.use(authenticateToken);
  * @swagger
  * /api/v1/classes:
  *   get:
- *     summary: Xem danh sách lớp học (ADMIN xem toàn bộ bảng; GV/HV xem danh sách lớp được gán kèm Tiến độ %)
+ *     summary: Xem danh sách lớp học (Hỗ trợ tìm kiếm Tên/Email GV, HV, tên lớp, lọc trạng thái cho ADMIN, GV, HV)
  *     tags: [Classes Management]
  *     security:
  *       - bearerAuth: []
@@ -19,13 +19,33 @@ router.use(authenticateToken);
  *         name: search
  *         schema:
  *           type: string
- *         description: Tìm kiếm tên lớp (Dành cho Admin)
+ *         description: Tìm kiếm chung - Tìm theo Tên lớp, Tên khóa học, hoặc Tên/Email của Giáo viên, Học viên thuộc lớp (Áp dụng cho ADMIN, GV, HV)
+ *         example: An
+ *       - in: query
+ *         name: userSearch
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm lớp học theo Tên hoặc Email của GV / HV thuộc lớp đó
+ *         example: gv.an@edumanage.com
+ *       - in: query
+ *         name: teacherSearch
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm chuyên biệt theo Tên hoặc Email Giáo viên phụ trách lớp
+ *         example: Nguyễn Văn An
+ *       - in: query
+ *         name: studentSearch
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm chuyên biệt theo Tên hoặc Email Học viên thuộc lớp
+ *         example: hv.binh@edumanage.com
  *       - in: query
  *         name: status
  *         schema:
  *           type: string
  *           enum: [schedule, ongoing, ended]
- *         description: Lọc trạng thái lớp học
+ *         description: Lọc trạng thái lớp học (Áp dụng cho CẢ ADMIN, GV và HV)
+ *         example: ongoing
  *       - in: query
  *         name: page
  *         schema:
@@ -38,7 +58,7 @@ router.use(authenticateToken);
  *           default: 10
  *     responses:
  *       200:
- *         description: Trả về danh sách lớp học kèm thông tin Khóa học, Giáo viên, Số học viên và Tiến độ học tập % (vd 12/36 buổi).
+ *         description: Trả về danh sách lớp học kèm thông tin Khóa học, Giáo viên, Danh sách học viên và Tiến độ học tập % (vd 1/12 buổi).
  */
 router.get('/', getClasses);
 
