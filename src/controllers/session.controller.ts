@@ -33,11 +33,15 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
     const sessionSelfStudy = selfStudies.find(ss => ss.sessionId === i);
     const selfStudyMessageCount = sessionSelfStudy ? 1 : 0;
 
+    const sessionTitle = course?.sessionTitles?.[i] ||
+      course?.sessions?.find(s => s.sessionNumber === i)?.title ||
+      `Buổi ${i}: Bài học & Thực hành Buổi ${i}`;
+
     if (user.role === 'STUDENT') {
       const studentSub = sessionSubmissions.find(s => s.studentId === user.id);
       sessionList.push({
         sessionId: i,
-        title: `Buổi ${i}: Bài học & Thực hành Buổi ${i}`,
+        title: sessionTitle,
         deadline: formattedDeadline,
         selfStudyCount: selfStudyMessageCount,
         hasSubmitted: !!studentSub,
@@ -48,7 +52,7 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
       // TEACHER & ADMIN view
       sessionList.push({
         sessionId: i,
-        title: `Buổi ${i}: Bài học & Thực hành Buổi ${i}`,
+        title: sessionTitle,
         submittedCount: sessionSubmissions.length,
         totalStudents: cls.studentIds ? cls.studentIds.length : 0,
         deadline: formattedDeadline,
@@ -78,6 +82,13 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     return res.status(404).json({ success: false, message: 'Lớp học không tồn tại.' });
   }
 
+  const courses = db.get('courses');
+  const course = courses.find(c => c.id === cls.courseId);
+
+  const sessionTitle = course?.sessionTitles?.[sessionNum] ||
+    course?.sessions?.find(s => s.sessionNumber === sessionNum)?.title ||
+    `Buổi ${sessionNum}: Bài học & Thực hành Buổi ${sessionNum}`;
+
   // BẢO TOÀN LỊCH SỬ BÀI TẬP (SNAPSHOT ISOLATION PATTERN):
   // Nếu lớp này đã có bài nộp ở buổi này -> Sử dụng bản Snapshot bài tập lúc làm bài (không bị đổi khi bài tập gốc bị sửa sau này).
   // Nếu lớp chưa tới buổi này / chưa ai nộp -> Lấy bản cập nhật mới nhất từ kho bài tập.
@@ -86,8 +97,6 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
   let exerciseGroup = snapshots[snapshotKey];
 
   if (!exerciseGroup) {
-    const courses = db.get('courses');
-    const course = courses.find(c => c.id === cls.courseId);
     const exerciseGroupId = course?.sessionExerciseGroupIds?.[sessionNum] || 'ex-group-1';
     const exercises = db.get('exercises');
     exerciseGroup = exercises.find(ex => ex.id === exerciseGroupId) || exercises[0];
@@ -104,6 +113,7 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     success: true,
     classId,
     sessionId: sessionNum,
+    sessionTitle,
     aiWarningBanner: '⚠️ CẢNH BÁO NGHIÊM CẤM: Hệ thống phát hiện và nghiêm cấm việc sử dụng công cụ AI (ChatGPT, Claude...) để làm bài tập.',
     exerciseGroup,
     userSubmission,

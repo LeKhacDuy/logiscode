@@ -99,6 +99,10 @@ const initialSeedData: DatabaseSchema = {
       name: 'IELTS Preparation Foundation',
       totalSessions: 12,
       level: 'foundation',
+      sessionTitles: {
+        1: 'Buổi 1: Grammar & Vocabulary Basics',
+        2: 'Buổi 2: Reading & Listening Skills'
+      },
       sessionExerciseGroupIds: {
         1: 'ex-group-1',
         2: 'ex-group-2'
@@ -110,6 +114,9 @@ const initialSeedData: DatabaseSchema = {
       name: 'Lập Trình Web React & Node.js Fullstack',
       totalSessions: 24,
       level: 'intermediate',
+      sessionTitles: {
+        1: 'Buổi 1: ES6+ & Modern JavaScript Fundamentals'
+      },
       sessionExerciseGroupIds: {
         1: 'ex-group-1'
       },
@@ -120,6 +127,7 @@ const initialSeedData: DatabaseSchema = {
       name: 'Business English Advanced Communication',
       totalSessions: 36,
       level: 'advanced',
+      sessionTitles: {},
       sessionExerciseGroupIds: {},
       createdAt: new Date().toISOString()
     }

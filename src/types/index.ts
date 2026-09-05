@@ -15,12 +15,20 @@ export interface User {
 
 export type CourseLevel = 'foundation' | 'intermediate' | 'advanced';
 
+export interface CourseSession {
+  sessionNumber: number;
+  title?: string; // Tiêu đề buổi học
+  exerciseGroupId?: string; // ID nhóm bài tập gán cho buổi
+}
+
 export interface Course {
   id: string;
   name: string;
   totalSessions: number;
   level: CourseLevel;
+  sessionTitles?: Record<string | number, string>; // session number -> title của buổi học
   sessionExerciseGroupIds: Record<string | number, string>; // session number -> exerciseGroupId
+  sessions?: CourseSession[]; // Danh sách các buổi học kèm tiêu đề và nhóm bài tập đã gán
   createdAt: string;
 }
 
