@@ -3,15 +3,31 @@ import { db } from '../data/db';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { Class, ClassStatus } from '../types';
 
+const removeAccents = (str: string): string => {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .toLowerCase();
+};
+
+const matchesKeyword = (target: string | undefined | null, query: string): boolean => {
+  if (!target || !query) return false;
+  const targetLower = target.toLowerCase();
+  const queryLower = query.toLowerCase();
+  if (targetLower.includes(queryLower)) return true;
+  return removeAccents(target).includes(removeAccents(query));
+};
+
 export const getClasses = (req: AuthenticatedRequest, res: Response) => {
   const user = req.user!;
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
-  const search = ((req.query.search as string) || '').toLowerCase().trim();
+  const search = ((req.query.search as string) || '').trim();
   const status = (req.query.status as ClassStatus) || undefined;
-  const userSearch = ((req.query.userSearch as string) || '').toLowerCase().trim();
-  const teacherSearch = ((req.query.teacherSearch as string) || '').toLowerCase().trim();
-  const studentSearch = ((req.query.studentSearch as string) || '').toLowerCase().trim();
+  const userSearch = ((req.query.userSearch as string) || '').trim();
+  const teacherSearch = ((req.query.teacherSearch as string) || '').trim();
+  const studentSearch = ((req.query.studentSearch as string) || '').trim();
 
   const allClasses = db.get('classes');
   const courses = db.get('courses');
@@ -41,6 +57,7 @@ export const getClasses = (req: AuthenticatedRequest, res: Response) => {
   // 3. Tìm kiếm linh hoạt (Search) - Áp dụng cho CẢ ADMIN, GV VÀ HV:
   // - Tìm kiếm theo tên lớp, tên khóa học
   // - Tìm kiếm theo Tên hoặc Email của GV / HV thuộc lớp đó
+  // - Hỗ trợ cả gõ tiếng Việt có dấu hoặc không dấu (vd: Huong / Hương, Nguyen Van An / Nguyễn Văn An)
   const filteredClasses = scopedClasses.filter(cls => {
     const course = courses.find(c => c.id === cls.courseId);
     const teacher = userMap.get(cls.teacherId);
@@ -48,12 +65,12 @@ export const getClasses = (req: AuthenticatedRequest, res: Response) => {
 
     // 3a. Tìm kiếm chung (param `search`):
     if (search) {
-      const matchClassName = cls.name.toLowerCase().includes(search);
-      const matchCourseName = course ? course.name.toLowerCase().includes(search) : false;
-      const matchTeacherName = teacher ? teacher.fullname.toLowerCase().includes(search) : false;
-      const matchTeacherEmail = teacher ? teacher.email.toLowerCase().includes(search) : false;
+      const matchClassName = matchesKeyword(cls.name, search);
+      const matchCourseName = course ? matchesKeyword(course.name, search) : false;
+      const matchTeacherName = teacher ? matchesKeyword(teacher.fullname, search) : false;
+      const matchTeacherEmail = teacher ? matchesKeyword(teacher.email, search) : false;
       const matchStudent = classStudents.some(s =>
-        s.fullname.toLowerCase().includes(search) || s.email.toLowerCase().includes(search)
+        matchesKeyword(s.fullname, search) || matchesKeyword(s.email, search)
       );
 
       if (!matchClassName && !matchCourseName && !matchTeacherName && !matchTeacherEmail && !matchStudent) {
@@ -64,12 +81,12 @@ export const getClasses = (req: AuthenticatedRequest, res: Response) => {
     // 3b. Tìm kiếm theo Giáo viên hoặc Học viên thuộc lớp (param `userSearch`):
     if (userSearch) {
       const matchTeacher = teacher && (
-        teacher.fullname.toLowerCase().includes(userSearch) ||
-        teacher.email.toLowerCase().includes(userSearch)
+        matchesKeyword(teacher.fullname, userSearch) ||
+        matchesKeyword(teacher.email, userSearch)
       );
       const matchStudent = classStudents.some(s =>
-        s.fullname.toLowerCase().includes(userSearch) ||
-        s.email.toLowerCase().includes(userSearch)
+        matchesKeyword(s.fullname, userSearch) ||
+        matchesKeyword(s.email, userSearch)
       );
 
       if (!matchTeacher && !matchStudent) {
@@ -80,8 +97,8 @@ export const getClasses = (req: AuthenticatedRequest, res: Response) => {
     // 3c. Tìm kiếm chuyên biệt Giáo viên (param `teacherSearch`):
     if (teacherSearch) {
       const matchTeacher = teacher && (
-        teacher.fullname.toLowerCase().includes(teacherSearch) ||
-        teacher.email.toLowerCase().includes(teacherSearch)
+        matchesKeyword(teacher.fullname, teacherSearch) ||
+        matchesKeyword(teacher.email, teacherSearch)
       );
       if (!matchTeacher) return false;
     }
@@ -89,8 +106,8 @@ export const getClasses = (req: AuthenticatedRequest, res: Response) => {
     // 3d. Tìm kiếm chuyên biệt Học viên (param `studentSearch`):
     if (studentSearch) {
       const matchStudent = classStudents.some(s =>
-        s.fullname.toLowerCase().includes(studentSearch) ||
-        s.email.toLowerCase().includes(studentSearch)
+        matchesKeyword(s.fullname, studentSearch) ||
+        matchesKeyword(s.email, studentSearch)
       );
       if (!matchStudent) return false;
     }
