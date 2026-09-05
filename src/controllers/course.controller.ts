@@ -233,7 +233,8 @@ export const updateCourse = (req: Request, res: Response) => {
 export const assignSessionExercise = (req: Request, res: Response) => {
   const { id, sessionNumber } = req.params;
   const { title, exerciseGroupId } = req.body;
-  const sessionNum = parseInt(sessionNumber);
+  const parsedNum = parseInt(sessionNumber, 10);
+  const sessionNum = !isNaN(parsedNum) ? parsedNum : parseInt(String(sessionNumber).replace(/\D/g, ''), 10);
 
   const courses = db.get('courses');
   const courseIndex = courses.findIndex(c => c.id === id);

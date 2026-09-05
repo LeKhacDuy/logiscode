@@ -3,6 +3,15 @@ import { db } from '../data/db';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { Submission, SelfStudy } from '../types';
 
+// Helper to parse sessionId flexibly (supports 1, "1", "ses-1", "ses-01", etc.)
+export const parseSessionId = (sessionId: string | undefined): number => {
+  if (!sessionId) return 1;
+  const num = parseInt(sessionId, 10);
+  if (!isNaN(num)) return num;
+  const extracted = parseInt(sessionId.replace(/\D/g, ''), 10);
+  return isNaN(extracted) ? 1 : extracted;
+};
+
 // 1. Get List of Sessions in a Class
 export const getSessions = (req: AuthenticatedRequest, res: Response) => {
   const { classId } = req.params;
@@ -73,7 +82,7 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
 // 2. Get Exercise details for a session (Tab 1)
 export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => {
   const { classId, sessionId } = req.params;
-  const sessionNum = parseInt(sessionId);
+  const sessionNum = parseSessionId(sessionId);
   const user = req.user!;
 
   const classes = db.get('classes');
@@ -124,7 +133,7 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
 // 3. Submit Exercise answers (Tab 1 - Student)
 export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) => {
   const { classId, sessionId } = req.params;
-  const sessionNum = parseInt(sessionId);
+  const sessionNum = parseSessionId(sessionId);
   const { answers, audioBlobUrl } = req.body;
   const user = req.user!;
 
@@ -272,7 +281,7 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
 // 3.5 Get all submissions of a session (Teacher & Admin view)
 export const getSessionSubmissions = (req: AuthenticatedRequest, res: Response) => {
   const { classId, sessionId } = req.params;
-  const sessionNum = parseInt(sessionId);
+  const sessionNum = parseSessionId(sessionId);
 
   const classes = db.get('classes');
   const cls = classes.find(c => c.id === classId);
@@ -334,7 +343,7 @@ export const gradeSubmission = (req: AuthenticatedRequest, res: Response) => {
 // 5. Get Self-Study content (Tab 2)
 export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
   const { classId, sessionId } = req.params;
-  const sessionNum = parseInt(sessionId);
+  const sessionNum = parseSessionId(sessionId);
 
   const selfStudies = db.get('selfStudies');
   const selfStudy = selfStudies.find(ss => ss.classId === classId && ss.sessionId === sessionNum);
@@ -357,7 +366,7 @@ export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
 // 6. Post / Edit Self-Study content (Tab 2 - Teacher)
 export const updateSelfStudy = (req: AuthenticatedRequest, res: Response) => {
   const { classId, sessionId } = req.params;
-  const sessionNum = parseInt(sessionId);
+  const sessionNum = parseSessionId(sessionId);
   const { content, videoUrl } = req.body;
   const user = req.user!;
 
@@ -397,7 +406,7 @@ export const updateSelfStudy = (req: AuthenticatedRequest, res: Response) => {
 // 7. Auto Record Student View for Self-Study (Tab 2 - Student)
 export const recordSelfStudyView = (req: AuthenticatedRequest, res: Response) => {
   const { classId, sessionId } = req.params;
-  const sessionNum = parseInt(sessionId);
+  const sessionNum = parseSessionId(sessionId);
   const user = req.user!;
 
   const selfStudies = db.get('selfStudies');
@@ -420,7 +429,7 @@ export const recordSelfStudyView = (req: AuthenticatedRequest, res: Response) =>
 // 8. Get List of Students who Read / Haven't Read Self-Study (Teacher & Admin)
 export const getSelfStudyTrackingReport = (req: AuthenticatedRequest, res: Response) => {
   const { classId, sessionId } = req.params;
-  const sessionNum = parseInt(sessionId);
+  const sessionNum = parseSessionId(sessionId);
 
   const classes = db.get('classes');
   const cls = classes.find(c => c.id === classId);
