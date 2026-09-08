@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getClasses, createClass, updateClass, deleteClass } from '../controllers/class.controller';
+import { getClasses, getClassById, createClass, updateClass, deleteClass } from '../controllers/class.controller';
 import { authenticateToken, requireRoles } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -61,6 +61,36 @@ router.use(authenticateToken);
  *         description: Trả về danh sách lớp học kèm thông tin Khóa học, Giáo viên, Danh sách học viên và Tiến độ học tập % (vd 1/12 buổi).
  */
 router.get('/', getClasses);
+
+/**
+ * @swagger
+ * /api/v1/classes/{id}:
+ *   get:
+ *     summary: Chi tiết lớp học (Class Detail) - Tên lớp, Khóa học, Giáo viên, Tiến độ, Danh sách buổi học & Danh sách học viên
+ *     description: |
+ *       - **ADMIN**: Xem chi tiết mọi lớp học. Danh sách học viên bao gồm Họ tên, Email và Tiến độ làm bài tập đến buổi nào (vd 3/12 buổi).
+ *       - **TEACHER (GV)**: Chỉ xem lớp mình được phân công giảng dạy. Danh sách học viên bao gồm Họ tên, Email và Tiến độ làm bài tập đến buổi nào (vd 3/12 buổi).
+ *       - **STUDENT (HV)**: Chỉ xem lớp mình tham gia. Danh sách học viên trong lớp chỉ bao gồm Họ tên và Email.
+ *     tags: [Classes Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của lớp học (vd cls-ielts-01)
+ *         example: cls-ielts-01
+ *     responses:
+ *       200:
+ *         description: Trả về chi tiết lớp học gồm tên lớp, khóa học, giáo viên, student count, progress, lessons list và danh sách học viên theo phân quyền.
+ *       403:
+ *         description: Không có quyền truy cập thông tin lớp học này.
+ *       404:
+ *         description: Lớp học không tồn tại.
+ */
+router.get('/:id', getClassById);
 
 /**
  * @swagger

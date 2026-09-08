@@ -134,12 +134,30 @@ export const getClasses = (req: AuthenticatedRequest, res: Response) => {
       teacherName: teacher ? teacher.fullname : 'Chưa phân công',
       teacherEmail: teacher ? teacher.email : '',
       studentCount: cls.studentIds ? cls.studentIds.length : 0,
-      students: classStudents.map(s => ({
-        id: s.id,
-        fullname: s.fullname,
-        email: s.email,
-        status: s.status
-      })),
+      students: classStudents.map(s => {
+        if (user.role === 'ADMIN' || user.role === 'TEACHER') {
+          const studentSubs = classSubmissions.filter(sub => sub.studentId === s.id);
+          const submittedSessionIds = Array.from(new Set(studentSubs.map(sub => sub.sessionId))).sort((a, b) => a - b);
+          const completedLessonsCount = submittedSessionIds.length;
+          return {
+            id: s.id,
+            fullname: s.fullname,
+            email: s.email,
+            status: s.status,
+            completedLessonsCount,
+            totalLessons: totalCourseSessions,
+            progressText: `${completedLessonsCount}/${totalCourseSessions} buổi`,
+            progressPercent: Math.round((completedLessonsCount / totalCourseSessions) * 100),
+            lastCompletedSession: submittedSessionIds.length > 0 ? Math.max(...submittedSessionIds) : 0
+          };
+        }
+        return {
+          id: s.id,
+          fullname: s.fullname,
+          email: s.email,
+          status: s.status
+        };
+      }),
       totalSessions: totalCourseSessions,
       completedSessions,
       progressText: `${completedSessions}/${totalCourseSessions} buổi`,
@@ -159,6 +177,168 @@ export const getClasses = (req: AuthenticatedRequest, res: Response) => {
     limit,
     totalPages,
     data: paginatedData
+  });
+};
+
+export const getClassById = (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const user = req.user!;
+
+  const classes = db.get('classes');
+  const cls = classes.find(c => c.id === id);
+
+  if (!cls) {
+    return res.status(404).json({
+      success: false,
+      message: 'Lớp học không tồn tại.'
+    });
+  }
+
+  // Phân quyền truy cập:
+  // - ADMIN: Xem tất cả
+  // - TEACHER: Chỉ xem nếu cls.teacherId === user.id
+  // - STUDENT: Chỉ xem nếu cls.studentIds.includes(user.id)
+  if (user.role === 'TEACHER' && cls.teacherId !== user.id) {
+    return res.status(403).json({
+      success: false,
+      message: 'Bạn không có quyền truy cập thông tin lớp học này (chỉ giáo viên phụ trách mới có quyền xem).'
+    });
+  }
+
+  if (user.role === 'STUDENT' && (!cls.studentIds || !cls.studentIds.includes(user.id))) {
+    return res.status(403).json({
+      success: false,
+      message: 'Bạn không có quyền truy cập thông tin lớp học này (bạn chưa được xếp vào lớp).'
+    });
+  }
+
+  const courses = db.get('courses');
+  const users = db.get('users');
+  const submissions = db.get('submissions');
+  const selfStudies = db.get('selfStudies').filter(ss => ss.classId === cls.id);
+
+  const userMap = new Map<string, any>();
+  users.forEach(u => userMap.set(u.id, u));
+
+  const course = courses.find(c => c.id === cls.courseId);
+  const teacher = userMap.get(cls.teacherId);
+  const classStudents = (cls.studentIds || []).map(sid => userMap.get(sid)).filter(Boolean);
+  const totalCourseSessions = course ? course.totalSessions : 12;
+
+  // Lấy các bài nộp của lớp này
+  const classSubmissions = submissions.filter(s => s.classId === cls.id);
+  const completedSessions = new Set(classSubmissions.map(s => s.sessionId)).size;
+  const progressPercent = Math.round((completedSessions / totalCourseSessions) * 100);
+
+  // Danh sách bài học / buổi học (lessons list)
+  const lessons = [];
+  const createdDate = new Date(cls.createdAt);
+
+  for (let i = 1; i <= totalCourseSessions; i++) {
+    const deadlineDate = new Date(createdDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+    const formattedDeadline = deadlineDate.toISOString().split('T')[0];
+
+    const sessionSubmissions = classSubmissions.filter(s => s.sessionId === i);
+    const sessionSelfStudy = selfStudies.find(ss => ss.sessionId === i);
+    const selfStudyCount = sessionSelfStudy ? 1 : 0;
+
+    const sessionTitle = course?.sessionTitles?.[i] ||
+      course?.sessions?.find(s => s.sessionNumber === i)?.title ||
+      `Buổi ${i}: Bài học & Thực hành Buổi ${i}`;
+
+    const exerciseGroupId = course?.sessionExerciseGroupIds?.[i] ||
+      course?.sessions?.find(s => s.sessionNumber === i)?.exerciseGroupId;
+
+    if (user.role === 'STUDENT') {
+      const studentSub = sessionSubmissions.find(s => s.studentId === user.id);
+      lessons.push({
+        sessionId: i,
+        sessionNumber: i,
+        title: sessionTitle,
+        deadline: formattedDeadline,
+        exerciseGroupId,
+        selfStudyCount,
+        hasSubmitted: !!studentSub,
+        score: studentSub ? studentSub.score : null,
+        isLate: studentSub ? studentSub.isLate : false,
+        submittedAt: studentSub ? studentSub.submittedAt : null
+      });
+    } else {
+      // ADMIN & GV view
+      lessons.push({
+        sessionId: i,
+        sessionNumber: i,
+        title: sessionTitle,
+        deadline: formattedDeadline,
+        exerciseGroupId,
+        submittedCount: sessionSubmissions.length,
+        totalStudents: cls.studentIds ? cls.studentIds.length : 0,
+        selfStudyCount
+      });
+    }
+  }
+
+  // Danh sách học viên trong lớp
+  // ADMIN/GV: fullname, email, đã làm bài tập đến buổi: vd 3/total lesson
+  // HV: chỉ fullname và email
+  const students = classStudents.map(s => {
+    if (user.role === 'ADMIN' || user.role === 'TEACHER') {
+      const studentSubs = classSubmissions.filter(sub => sub.studentId === s.id);
+      const submittedSessionIds = Array.from(new Set(studentSubs.map(sub => sub.sessionId))).sort((a, b) => a - b);
+      const completedLessonsCount = submittedSessionIds.length;
+      return {
+        id: s.id,
+        fullname: s.fullname,
+        email: s.email,
+        status: s.status,
+        completedLessonsCount,
+        totalLessons: totalCourseSessions,
+        progressText: `${completedLessonsCount}/${totalCourseSessions} buổi`,
+        progressPercent: Math.round((completedLessonsCount / totalCourseSessions) * 100),
+        lastCompletedSession: submittedSessionIds.length > 0 ? Math.max(...submittedSessionIds) : 0,
+        submittedSessionIds
+      };
+    } else {
+      return {
+        id: s.id,
+        fullname: s.fullname,
+        email: s.email
+      };
+    }
+  });
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      id: cls.id,
+      name: cls.name,
+      status: cls.status,
+      courseId: cls.courseId,
+      courseName: course ? course.name : 'Unknown Course',
+      courseLevel: course ? course.level : 'foundation',
+      course: course ? {
+        id: course.id,
+        name: course.name,
+        level: course.level,
+        totalSessions: course.totalSessions
+      } : null,
+      teacherId: cls.teacherId,
+      teacherName: teacher ? teacher.fullname : 'Chưa phân công',
+      teacherEmail: teacher ? teacher.email : '',
+      teacher: teacher ? {
+        id: teacher.id,
+        fullname: teacher.fullname,
+        email: teacher.email
+      } : null,
+      studentCount: cls.studentIds ? cls.studentIds.length : 0,
+      totalSessions: totalCourseSessions,
+      completedSessions,
+      progressText: `${completedSessions}/${totalCourseSessions} buổi`,
+      progressPercent,
+      lessons,
+      students,
+      createdAt: cls.createdAt
+    }
   });
 };
 
