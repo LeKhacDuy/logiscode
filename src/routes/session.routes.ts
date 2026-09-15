@@ -128,7 +128,7 @@ router.post('/:sessionId/submit', requireRoles('STUDENT'), submitSessionExercise
  *           type: integer
  *     responses:
  *       200:
- *         description: Trả về danh sách bài nộp của cả lớp cho buổi học.
+ *         description: Trả về danh sách bài nộp của cả lớp cho buổi học. Mỗi bài nộp có `gradingStatus`: 'graded' (đã chấm) | 'pending' (chưa chấm) và `gradingStatusText`: 'Đã chấm' | 'Chưa chấm'.
  */
 router.get(
   '/:sessionId/submissions',

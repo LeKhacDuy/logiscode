@@ -298,7 +298,8 @@ export const getSessionSubmissions = (req: AuthenticatedRequest, res: Response) 
       ...sub,
       studentName: student ? student.fullname : 'Học viên',
       studentEmail: student ? student.email : '',
-      gradingStatus: sub.score !== undefined ? 'Đã chấm' : 'Chưa chấm'
+      gradingStatus: sub.score !== undefined ? 'graded' : 'pending',
+      gradingStatusText: sub.score !== undefined ? 'Đã chấm' : 'Chưa chấm'
     };
   });
 
