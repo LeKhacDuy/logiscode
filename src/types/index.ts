@@ -45,6 +45,9 @@ export interface Class {
   sessionExerciseGroupIds?: Record<string | number, string>; // sessionNum -> exerciseGroupId đã gán cho lớp
   sessionDeadlines?: Record<string | number, string>; // sessionNum -> hạn nộp bài của lớp
   sessionAssignedAt?: Record<string | number, string>; // sessionNum -> thời điểm gán bài
+  isReviewLocked?: boolean; // Khóa toàn bộ học viên trong lớp không cho xem lại bài tập cũ
+  lockedReviewStudentIds?: string[]; // Danh sách học viên cụ thể bị khóa xem lại (nếu chỉ khóa từng cá nhân)
+  reviewLockMessage?: string; // Thông báo tùy biến hiển thị khi học viên bị khóa xem lại
   createdAt: string;
 }
 

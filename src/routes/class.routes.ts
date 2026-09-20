@@ -1,5 +1,12 @@
 import { Router } from 'express';
-import { getClasses, getClassById, createClass, updateClass, deleteClass } from '../controllers/class.controller';
+import {
+  getClasses,
+  getClassById,
+  createClass,
+  updateClass,
+  deleteClass,
+  lockClassReview
+} from '../controllers/class.controller';
 import { authenticateToken, requireRoles } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -190,5 +197,82 @@ router.put('/:id', requireRoles('ADMIN', 'TEACHER'), updateClass);
  *         description: Xóa lớp học thành công.
  */
 router.delete('/:id', requireRoles('ADMIN'), deleteClass);
+
+/**
+ * @swagger
+ * /api/v1/classes/{id}/lock-review:
+ *   put:
+ *     summary: Khóa / Mở khóa quyền xem lại bài cũ đối với học viên của lớp (Admin & GV phụ trách lớp)
+ *     description: |
+ *       - **ADMIN**: Có quyền khóa hoặc mở khóa quyền xem lại của bất kỳ lớp học nào.
+ *       - **TEACHER (Giáo viên)**: Chỉ có quyền khóa/mở khóa đối với lớp mình phụ trách giảng dạy.
+ *       - Khi bị khóa, học viên trong lớp sẽ bị chặn **403 Forbidden** khi truy cập xem lại đề bài, đáp án (`/exercise`), tài liệu tự học (`/self-study`), hoặc nộp bài mới (`/submit`).
+ *       - API chi tiết lớp (`GET /api/v1/classes/:id`) sẽ trả về cờ `isReviewLocked: true` ở từng buổi học để Frontend hiển thị biểu tượng ổ khóa 🔒.
+ *     tags: [Classes Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của lớp học
+ *         example: cls-ielts-01
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               isReviewLocked:
+ *                 type: boolean
+ *                 description: true để khóa, false để mở khóa lại. Mặc định là true.
+ *                 example: true
+ *               studentIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: (Tùy chọn) Danh sách học viên cụ thể muốn khóa/mở khóa. Nếu không truyền hoặc rỗng, áp dụng cho toàn bộ học viên của lớp.
+ *                 example: ["u-student-1"]
+ *               message:
+ *                 type: string
+ *                 description: (Tùy chọn) Thông báo hiển thị khi học viên bị khóa truy cập xem lại.
+ *                 example: Lớp học đã kết thúc và đã bị khóa tính năng xem lại bài cũ.
+ *     responses:
+ *       200:
+ *         description: Khóa/Mở khóa thành công.
+ *       403:
+ *         description: Không có quyền (chỉ Admin hoặc Giáo viên phụ trách lớp mới được gọi).
+ *       404:
+ *         description: Lớp học không tồn tại.
+ *   post:
+ *     summary: Khóa / Mở khóa quyền xem lại bài cũ (Alias POST)
+ *     tags: [Classes Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               isReviewLocked:
+ *                 type: boolean
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Thành công.
+ */
+router.put('/:id/lock-review', requireRoles('ADMIN', 'TEACHER'), lockClassReview);
+router.post('/:id/lock-review', requireRoles('ADMIN', 'TEACHER'), lockClassReview);
+router.put('/:id/review-lock', requireRoles('ADMIN', 'TEACHER'), lockClassReview);
 
 export default router;

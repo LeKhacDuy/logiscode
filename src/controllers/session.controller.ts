@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { db } from '../data/db';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { Submission, SelfStudy } from '../types';
+import { isStudentReviewLocked } from './class.controller';
 
 // Helper to parse sessionId flexibly (supports 1, "1", "ses-1", "ses-01", etc.)
 export const parseSessionId = (sessionId: string | undefined): number => {
@@ -30,6 +31,7 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
   const submissions = db.get('submissions').filter(s => s.classId === classId);
   const selfStudies = db.get('selfStudies').filter(ss => ss.classId === classId);
 
+  const studentIsReviewLocked = user.role === 'STUDENT' && isStudentReviewLocked(cls, user.id);
   const sessionList = [];
   const createdDate = new Date(cls.createdAt);
 
@@ -57,6 +59,7 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
         title: sessionTitle,
         deadline: formattedDeadline,
         isAssigned,
+        isReviewLocked: studentIsReviewLocked,
         exerciseGroupId,
         selfStudyCount: selfStudyMessageCount,
         hasSubmitted: !!studentSub,
@@ -83,6 +86,9 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
     classId: cls.id,
     className: cls.name,
     totalSessions,
+    isReviewLocked: !!cls.isReviewLocked,
+    isStudentReviewLocked: user.role === 'STUDENT' ? studentIsReviewLocked : undefined,
+    reviewLockMessage: cls.reviewLockMessage || null,
     sessions: sessionList
   });
 };
@@ -97,6 +103,15 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
   const cls = classes.find(c => c.id === classId);
   if (!cls) {
     return res.status(404).json({ success: false, message: 'Lớp học không tồn tại.' });
+  }
+
+  // Kiểm tra quyền xem lại bài tập cũ (Review Lock):
+  if (user.role === 'STUDENT' && isStudentReviewLocked(cls, user.id)) {
+    return res.status(403).json({
+      success: false,
+      isReviewLocked: true,
+      message: cls.reviewLockMessage || 'Lớp học này đã kết thúc và đã bị khóa quyền xem lại bài tập cũ. Vui lòng liên hệ trung tâm hoặc giáo viên để được hỗ trợ.'
+    });
   }
 
   const courses = db.get('courses');
@@ -217,6 +232,15 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
   const cls = classes.find(c => c.id === classId);
   if (!cls) {
     return res.status(404).json({ success: false, message: 'Lớp học không tồn tại.' });
+  }
+
+  // Kiểm tra nếu lớp học hoặc học viên đã bị khóa quyền nộp/xem lại:
+  if (user.role === 'STUDENT' && isStudentReviewLocked(cls, user.id)) {
+    return res.status(403).json({
+      success: false,
+      isReviewLocked: true,
+      message: 'Lớp học này đã kết thúc và đã bị khóa nộp hoặc xem lại bài tập.'
+    });
   }
 
   const isAssigned = !!cls.sessionExerciseGroupIds?.[sessionNum];
@@ -434,6 +458,16 @@ export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
   const { classId, sessionId } = req.params;
   const sessionNum = parseSessionId(sessionId);
   const user = req.user!;
+
+  const classes = db.get('classes');
+  const cls = classes.find(c => c.id === classId);
+  if (user && user.role === 'STUDENT' && cls && isStudentReviewLocked(cls, user.id)) {
+    return res.status(403).json({
+      success: false,
+      isReviewLocked: true,
+      message: cls.reviewLockMessage || 'Lớp học này đã kết thúc và đã bị khóa quyền xem lại nội dung tự học.'
+    });
+  }
 
   const selfStudies = db.get('selfStudies');
   const index = selfStudies.findIndex(ss => ss.classId === classId && ss.sessionId === sessionNum);

@@ -19,6 +19,13 @@ const matchesKeyword = (target: string | undefined | null, query: string): boole
   return removeAccents(target).includes(removeAccents(query));
 };
 
+export const isStudentReviewLocked = (cls: Class, studentId: string): boolean => {
+  if (!cls) return false;
+  if (cls.isReviewLocked) return true;
+  if (cls.lockedReviewStudentIds && cls.lockedReviewStudentIds.includes(studentId)) return true;
+  return false;
+};
+
 export const getClasses = (req: AuthenticatedRequest, res: Response) => {
   const user = req.user!;
   const page = parseInt(req.query.page as string) || 1;
@@ -161,7 +168,10 @@ export const getClasses = (req: AuthenticatedRequest, res: Response) => {
       totalSessions: totalCourseSessions,
       completedSessions,
       progressText: `${completedSessions}/${totalCourseSessions} buổi`,
-      progressPercent
+      progressPercent,
+      isReviewLocked: !!cls.isReviewLocked,
+      isStudentReviewLocked: user.role === 'STUDENT' ? isStudentReviewLocked(cls, user.id) : undefined,
+      reviewLockMessage: cls.reviewLockMessage || null
     };
   });
 
@@ -231,6 +241,7 @@ export const getClassById = (req: AuthenticatedRequest, res: Response) => {
   const progressPercent = Math.round((completedSessions / totalCourseSessions) * 100);
 
   // Danh sách bài học / buổi học (lessons list)
+  const studentIsReviewLocked = user.role === 'STUDENT' && isStudentReviewLocked(cls, user.id);
   const lessons = [];
   const createdDate = new Date(cls.createdAt);
 
@@ -260,6 +271,7 @@ export const getClassById = (req: AuthenticatedRequest, res: Response) => {
         title: sessionTitle,
         deadline: sessionDeadline,
         isAssigned,
+        isReviewLocked: studentIsReviewLocked,
         exerciseGroupId,
         selfStudyCount,
         hasSubmitted: !!studentSub,
@@ -342,6 +354,10 @@ export const getClassById = (req: AuthenticatedRequest, res: Response) => {
       progressPercent,
       lessons,
       students,
+      isReviewLocked: !!cls.isReviewLocked,
+      isStudentReviewLocked: user.role === 'STUDENT' ? studentIsReviewLocked : undefined,
+      lockedReviewStudentIds: (user.role === 'ADMIN' || user.role === 'TEACHER') ? (cls.lockedReviewStudentIds || []) : undefined,
+      reviewLockMessage: cls.reviewLockMessage || null,
       createdAt: cls.createdAt
     }
   });
@@ -392,7 +408,7 @@ export const createClass = (req: AuthenticatedRequest, res: Response) => {
 
 export const updateClass = (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const { status, studentIds, teacherId, name } = req.body;
+  const { status, studentIds, teacherId, name, isReviewLocked, lockedReviewStudentIds, reviewLockMessage } = req.body;
   const user = req.user!;
 
   const classes = db.get('classes');
@@ -404,7 +420,7 @@ export const updateClass = (req: AuthenticatedRequest, res: Response) => {
 
   const cls = classes[classIndex];
 
-  // GV is only allowed to update status for assigned class
+  // GV is only allowed to update status and review lock for assigned class
   if (user.role === 'TEACHER') {
     if (cls.teacherId !== user.id) {
       return res.status(403).json({ success: false, message: 'Bạn không phải là giáo viên của lớp học này.' });
@@ -415,11 +431,17 @@ export const updateClass = (req: AuthenticatedRequest, res: Response) => {
       }
       cls.status = status;
     }
+    if (isReviewLocked !== undefined) cls.isReviewLocked = !!isReviewLocked;
+    if (lockedReviewStudentIds !== undefined && Array.isArray(lockedReviewStudentIds)) cls.lockedReviewStudentIds = lockedReviewStudentIds;
+    if (reviewLockMessage !== undefined) cls.reviewLockMessage = reviewLockMessage ? String(reviewLockMessage).trim() : undefined;
   } else if (user.role === 'ADMIN') {
     if (name) cls.name = name.trim();
     if (status) cls.status = status;
     if (teacherId) cls.teacherId = teacherId;
     if (studentIds && Array.isArray(studentIds)) cls.studentIds = studentIds;
+    if (isReviewLocked !== undefined) cls.isReviewLocked = !!isReviewLocked;
+    if (lockedReviewStudentIds !== undefined && Array.isArray(lockedReviewStudentIds)) cls.lockedReviewStudentIds = lockedReviewStudentIds;
+    if (reviewLockMessage !== undefined) cls.reviewLockMessage = reviewLockMessage ? String(reviewLockMessage).trim() : undefined;
   }
 
   classes[classIndex] = cls;
@@ -447,5 +469,68 @@ export const deleteClass = (req: AuthenticatedRequest, res: Response) => {
   return res.status(200).json({
     success: true,
     message: 'Xóa lớp học thành công!'
+  });
+};
+
+export const lockClassReview = (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const user = req.user!;
+  const { isReviewLocked = true, studentIds, message } = req.body;
+
+  const classes = db.get('classes');
+  const classIndex = classes.findIndex(c => c.id === id);
+
+  if (classIndex === -1) {
+    return res.status(404).json({ success: false, message: 'Lớp học không tồn tại.' });
+  }
+
+  const cls = classes[classIndex];
+
+  // Quyền truy cập: ADMIN hoặc TEACHER phụ trách lớp
+  if (user.role === 'TEACHER' && cls.teacherId !== user.id) {
+    return res.status(403).json({
+      success: false,
+      message: 'Bạn không có quyền quản lý lớp học này (chỉ giáo viên phụ trách mới có quyền).'
+    });
+  }
+
+  if (Array.isArray(studentIds) && studentIds.length > 0) {
+    // Khóa hoặc mở khóa theo danh sách học viên cụ thể
+    const currentLocked = new Set(cls.lockedReviewStudentIds || []);
+    if (isReviewLocked) {
+      studentIds.forEach((sid: string) => currentLocked.add(sid));
+    } else {
+      studentIds.forEach((sid: string) => currentLocked.delete(sid));
+    }
+    cls.lockedReviewStudentIds = Array.from(currentLocked);
+  } else {
+    // Áp dụng cho toàn bộ học viên của lớp
+    cls.isReviewLocked = !!isReviewLocked;
+    if (!isReviewLocked) {
+      cls.lockedReviewStudentIds = [];
+    }
+  }
+
+  if (message !== undefined) {
+    cls.reviewLockMessage = message ? String(message).trim() : undefined;
+  } else if (isReviewLocked && !cls.reviewLockMessage) {
+    cls.reviewLockMessage = 'Lớp học đã kết thúc và đã bị khóa tính năng xem lại bài cũ.';
+  }
+
+  classes[classIndex] = cls;
+  db.update('classes', classes);
+
+  const actionText = isReviewLocked ? 'Khóa' : 'Mở khóa';
+  return res.status(200).json({
+    success: true,
+    message: `${actionText} quyền xem lại bài tập cũ của lớp học thành công!`,
+    data: {
+      classId: cls.id,
+      className: cls.name,
+      status: cls.status,
+      isReviewLocked: !!cls.isReviewLocked,
+      lockedReviewStudentIds: cls.lockedReviewStudentIds || [],
+      reviewLockMessage: cls.reviewLockMessage || null
+    }
   });
 };
