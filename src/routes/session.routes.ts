@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   getSessions,
   getSessionExercise,
+  assignSessionExercise,
   getSessionSubmissions,
   submitSessionExercise,
   gradeSubmission,
@@ -21,7 +22,7 @@ router.use(authenticateToken);
  * @swagger
  * /api/v1/classes/{classId}/sessions:
  *   get:
- *     summary: Xem danh sách buổi học của lớp (Trả về Tiêu đề buổi, Hạn nộp, Số hv nộp bài, Số tin nhắn tự học)
+ *     summary: Xem danh sách buổi học của lớp (Trả về Tiêu đề buổi, Hạn nộp, Trạng thái đã gán bài tập isAssigned, Số hv nộp bài, Số tin nhắn tự học)
  *     tags: [Sessions & Lesson Details]
  *     security:
  *       - bearerAuth: []
@@ -42,6 +43,9 @@ router.get('/', getSessions);
  * /api/v1/classes/{classId}/sessions/{sessionId}/exercise:
  *   get:
  *     summary: Tab 1 - Xem nội dung Bài tập của buổi (Kèm Cảnh báo nghiêm cấm sử dụng AI)
+ *     description: |
+ *       - Nếu buổi học chưa được giáo viên gán bài tập cho lớp: Trả về `isAssigned: false` kèm thông báo *"Buổi học này chưa được giáo viên giao bài tập."*
+ *       - Nếu buổi học đã được gán bài tập: Trả về `isAssigned: true` kèm toàn bộ nội dung đề bài tập `exerciseGroup` để học viên làm bài.
  *     tags: [Sessions & Lesson Details]
  *     security:
  *       - bearerAuth: []
@@ -58,9 +62,72 @@ router.get('/', getSessions);
  *           type: integer
  *     responses:
  *       200:
- *         description: Trả về đề bài 5 dạng, cảnh báo AI và trạng thái làm bài cá nhân/toàn lớp.
+ *         description: Trả về đề bài 5 dạng (hoặc thông báo chưa giao bài), cảnh báo AI và trạng thái làm bài cá nhân/toàn lớp.
  */
 router.get('/:sessionId/exercise', getSessionExercise);
+
+/**
+ * @swagger
+ * /api/v1/classes/{classId}/sessions/{sessionId}/assign-exercise:
+ *   put:
+ *     summary: Giáo viên / Admin gán bài tập cho buổi học của lớp sau khi dạy xong
+ *     description: |
+ *       - Giáo viên dạy xong buổi nào thì tiến hành gán bài tập cho buổi đó của lớp mình phụ trách.
+ *       - Khi chưa gán, học viên vào xem sẽ nhận thông báo "Buổi học này chưa được giáo viên giao bài tập" và không thể nộp bài.
+ *       - Khi đã gán, toàn bộ học viên trong lớp mới có thể xem đề bài và làm bài tập.
+ *       - Có thể chọn nhóm bài tập từ kho bài tập (`exerciseGroupId`) hoặc để trống để hệ thống tự lấy bài tập cấu hình mặc định của khóa học.
+ *     tags: [Sessions & Lesson Details]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: cls-ielts-01
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 2
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               exerciseGroupId:
+ *                 type: string
+ *                 description: ID nhóm bài tập từ kho bài tập (nếu không truyền sẽ tự lấy bài tập mặc định của khóa học)
+ *                 example: ex-group-2
+ *               deadline:
+ *                 type: string
+ *                 format: date
+ *                 description: Hạn nộp bài (YYYY-MM-DD), mặc định 7 ngày kể từ lúc gán bài
+ *                 example: 2026-09-30
+ *     responses:
+ *       200:
+ *         description: Gán bài tập cho buổi học thành công.
+ *       400:
+ *         description: Nhóm bài tập không tồn tại hoặc chưa chọn bài tập.
+ *       403:
+ *         description: Bạn không phải giáo viên phụ trách lớp học này.
+ *       404:
+ *         description: Lớp học không tồn tại.
+ */
+router.put(
+  '/:sessionId/assign-exercise',
+  requireRoles('TEACHER', 'ADMIN'),
+  assignSessionExercise
+);
+
+router.post(
+  '/:sessionId/assign-exercise',
+  requireRoles('TEACHER', 'ADMIN'),
+  assignSessionExercise
+);
 
 /**
  * @swagger

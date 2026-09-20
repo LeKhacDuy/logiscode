@@ -140,6 +140,12 @@ const initialSeedData: DatabaseSchema = {
       status: 'ongoing',
       teacherId: 'u-teacher-1',
       studentIds: ['u-student-1', 'u-student-2', 'u-student-3'],
+      sessionExerciseGroupIds: {
+        1: 'ex-group-1'
+      },
+      sessionDeadlines: {
+        1: '2026-08-18'
+      },
       createdAt: new Date().toISOString()
     },
     {

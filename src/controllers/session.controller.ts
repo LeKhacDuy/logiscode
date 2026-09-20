@@ -34,9 +34,12 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
   const createdDate = new Date(cls.createdAt);
 
   for (let i = 1; i <= totalSessions; i++) {
-    // Calculate default deadline: 7 days after class creation + (i-1)*7 days
-    const deadlineDate = new Date(createdDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
-    const formattedDeadline = deadlineDate.toISOString().split('T')[0];
+    // Calculate deadline: use class specific deadline if set, otherwise 7 days interval
+    const formattedDeadline = cls.sessionDeadlines?.[i] ||
+      new Date(createdDate.getTime() + i * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const isAssigned = !!cls.sessionExerciseGroupIds?.[i];
+    const exerciseGroupId = cls.sessionExerciseGroupIds?.[i] || null;
 
     const sessionSubmissions = submissions.filter(s => s.sessionId === i);
     const sessionSelfStudy = selfStudies.find(ss => ss.sessionId === i);
@@ -52,6 +55,8 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
         sessionId: i,
         title: sessionTitle,
         deadline: formattedDeadline,
+        isAssigned,
+        exerciseGroupId,
         selfStudyCount: selfStudyMessageCount,
         hasSubmitted: !!studentSub,
         score: studentSub ? studentSub.score : null,
@@ -62,6 +67,8 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
       sessionList.push({
         sessionId: i,
         title: sessionTitle,
+        isAssigned,
+        exerciseGroupId,
         submittedCount: sessionSubmissions.length,
         totalStudents: cls.studentIds ? cls.studentIds.length : 0,
         deadline: formattedDeadline,
@@ -98,17 +105,31 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     course?.sessions?.find(s => s.sessionNumber === sessionNum)?.title ||
     `Buổi ${sessionNum}: Bài học & Thực hành Buổi ${sessionNum}`;
 
+  const isAssigned = !!cls.sessionExerciseGroupIds?.[sessionNum];
+  const assignedExerciseGroupId = cls.sessionExerciseGroupIds?.[sessionNum];
+
+  // Nếu buổi học này chưa được giáo viên giao bài tập cho lớp:
+  if (!isAssigned || !assignedExerciseGroupId) {
+    return res.status(200).json({
+      success: true,
+      classId,
+      sessionId: sessionNum,
+      sessionTitle,
+      isAssigned: false,
+      message: 'Buổi học này chưa được giáo viên giao bài tập.',
+      exerciseGroup: null,
+      userSubmission: null
+    });
+  }
+
   // BẢO TOÀN LỊCH SỬ BÀI TẬP (SNAPSHOT ISOLATION PATTERN):
-  // Nếu lớp này đã có bài nộp ở buổi này -> Sử dụng bản Snapshot bài tập lúc làm bài (không bị đổi khi bài tập gốc bị sửa sau này).
-  // Nếu lớp chưa tới buổi này / chưa ai nộp -> Lấy bản cập nhật mới nhất từ kho bài tập.
   const snapshotKey = `${classId}_${sessionNum}`;
   const snapshots = db.get('exerciseSnapshots') || {};
-  let exerciseGroup = snapshots[snapshotKey];
+  let exerciseGroup: any = snapshots[snapshotKey];
 
   if (!exerciseGroup) {
-    const exerciseGroupId = course?.sessionExerciseGroupIds?.[sessionNum] || 'ex-group-1';
     const exercises = db.get('exercises');
-    exerciseGroup = exercises.find(ex => ex.id === exerciseGroupId) || exercises[0];
+    exerciseGroup = exercises.find(ex => ex.id === assignedExerciseGroupId) || null;
   }
 
   const submissions = db.get('submissions').filter(s => s.classId === classId && s.sessionId === sessionNum);
@@ -118,11 +139,17 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     userSubmission = submissions.find(s => s.studentId === user.id) || null;
   }
 
+  const deadline = cls.sessionDeadlines?.[sessionNum] ||
+    new Date(new Date(cls.createdAt).getTime() + sessionNum * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
   return res.status(200).json({
     success: true,
     classId,
     sessionId: sessionNum,
     sessionTitle,
+    isAssigned: true,
+    deadline,
+    assignedAt: cls.sessionAssignedAt?.[sessionNum] || null,
     aiWarningBanner: '⚠️ CẢNH BÁO NGHIÊM CẤM: Hệ thống phát hiện và nghiêm cấm việc sử dụng công cụ AI (ChatGPT, Claude...) để làm bài tập.',
     exerciseGroup,
     userSubmission,
@@ -149,8 +176,23 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
   const now = new Date();
   const classes = db.get('classes');
   const cls = classes.find(c => c.id === classId);
-  const createdDate = cls ? new Date(cls.createdAt) : new Date();
-  const deadlineDate = new Date(createdDate.getTime() + sessionNum * 7 * 24 * 60 * 60 * 1000);
+  if (!cls) {
+    return res.status(404).json({ success: false, message: 'Lớp học không tồn tại.' });
+  }
+
+  const isAssigned = !!cls.sessionExerciseGroupIds?.[sessionNum];
+  const assignedExerciseGroupId = cls.sessionExerciseGroupIds?.[sessionNum];
+  if (!isAssigned || !assignedExerciseGroupId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Buổi học này chưa được giáo viên giao bài tập, không thể nộp bài.'
+    });
+  }
+
+  const deadlineStr = cls.sessionDeadlines?.[sessionNum];
+  const deadlineDate = deadlineStr
+    ? new Date(deadlineStr + 'T23:59:59.999Z')
+    : new Date(new Date(cls.createdAt).getTime() + sessionNum * 7 * 24 * 60 * 60 * 1000);
   const isLate = now > deadlineDate;
 
   // LƯU / ĐÓNG BĂNG BẢN SNAPSHOT BÀI TẬP TẠI THỜI ĐIỂM LỚP HỌC LÀM BÀI:
@@ -159,11 +201,8 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
   let exerciseGroup = snapshots[snapshotKey];
 
   if (!exerciseGroup) {
-    const courses = db.get('courses');
-    const course = courses.find(c => c.id === cls?.courseId);
-    const exerciseGroupId = course?.sessionExerciseGroupIds?.[sessionNum] || 'ex-group-1';
     const exercises = db.get('exercises');
-    const currentMasterExercise = exercises.find(ex => ex.id === exerciseGroupId) || exercises[0];
+    const currentMasterExercise = exercises.find(ex => ex.id === assignedExerciseGroupId) || exercises[0];
 
     // Đóng băng snapshot bản bài tập lúc lớp bắt đầu nộp bài
     exerciseGroup = JSON.parse(JSON.stringify(currentMasterExercise));
@@ -478,5 +517,94 @@ export const getSelfStudyTrackingReport = (req: AuthenticatedRequest, res: Respo
     },
     readList,
     unreadList
+  });
+};
+
+// 7. Gán bài tập cho buổi học của Lớp sau khi dạy xong (Teacher / Admin)
+export const assignSessionExercise = (req: AuthenticatedRequest, res: Response) => {
+  const { classId, sessionId } = req.params;
+  const sessionNum = parseSessionId(sessionId);
+  const { exerciseGroupId, deadline } = req.body;
+  const user = req.user!;
+
+  const classes = db.get('classes');
+  const classIndex = classes.findIndex(c => c.id === classId);
+  if (classIndex === -1) {
+    return res.status(404).json({ success: false, message: 'Lớp học không tồn tại.' });
+  }
+
+  const cls = classes[classIndex];
+
+  // Quyền: ADMIN hoặc TEACHER phụ trách lớp
+  if (user.role === 'TEACHER' && cls.teacherId !== user.id) {
+    return res.status(403).json({ success: false, message: 'Bạn không phải là giáo viên phụ trách của lớp học này.' });
+  }
+
+  const courses = db.get('courses');
+  const course = courses.find(c => c.id === cls.courseId);
+
+  // Xác định exerciseGroupId cần gán:
+  // 1. Lấy từ request body nếu có truyền
+  // 2. Nếu không truyền, lấy mặc định từ course.sessionExerciseGroupIds
+  const exercises = db.get('exercises');
+  let selectedExerciseGroupId = exerciseGroupId;
+
+  if (!selectedExerciseGroupId) {
+    selectedExerciseGroupId = course?.sessionExerciseGroupIds?.[sessionNum] ||
+      course?.sessions?.find(s => s.sessionNumber === sessionNum)?.exerciseGroupId;
+  }
+
+  if (!selectedExerciseGroupId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Vui lòng chọn nhóm bài tập từ kho bài tập để gán cho buổi học này.'
+    });
+  }
+
+  const exerciseExists = exercises.find(e => e.id === selectedExerciseGroupId);
+  if (!exerciseExists) {
+    return res.status(400).json({
+      success: false,
+      message: `Nhóm bài tập '${selectedExerciseGroupId}' không tồn tại trong kho bài tập.`
+    });
+  }
+
+  if (!cls.sessionExerciseGroupIds) {
+    cls.sessionExerciseGroupIds = {};
+  }
+  if (!cls.sessionDeadlines) {
+    cls.sessionDeadlines = {};
+  }
+  if (!cls.sessionAssignedAt) {
+    cls.sessionAssignedAt = {};
+  }
+
+  const now = new Date();
+  let finalDeadline = deadline;
+  if (!finalDeadline) {
+    const defaultDeadlineDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    finalDeadline = defaultDeadlineDate.toISOString().split('T')[0];
+  }
+
+  cls.sessionExerciseGroupIds[sessionNum] = selectedExerciseGroupId;
+  cls.sessionDeadlines[sessionNum] = finalDeadline;
+  cls.sessionAssignedAt[sessionNum] = now.toISOString();
+
+  classes[classIndex] = cls;
+  db.update('classes', classes);
+
+  return res.status(200).json({
+    success: true,
+    message: `Gán bài tập cho Buổi ${sessionNum} của lớp '${cls.name}' thành công!`,
+    data: {
+      classId: cls.id,
+      className: cls.name,
+      sessionId: sessionNum,
+      isAssigned: true,
+      exerciseGroupId: selectedExerciseGroupId,
+      exerciseGroupName: exerciseExists.name,
+      deadline: finalDeadline,
+      assignedAt: cls.sessionAssignedAt[sessionNum]
+    }
   });
 };

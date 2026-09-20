@@ -246,8 +246,9 @@ export const getClassById = (req: AuthenticatedRequest, res: Response) => {
       course?.sessions?.find(s => s.sessionNumber === i)?.title ||
       `Buổi ${i}: Bài học & Thực hành Buổi ${i}`;
 
-    const exerciseGroupId = course?.sessionExerciseGroupIds?.[i] ||
-      course?.sessions?.find(s => s.sessionNumber === i)?.exerciseGroupId;
+    const isAssigned = !!cls.sessionExerciseGroupIds?.[i];
+    const exerciseGroupId = cls.sessionExerciseGroupIds?.[i] || null;
+    const sessionDeadline = cls.sessionDeadlines?.[i] || formattedDeadline;
 
     if (user.role === 'STUDENT') {
       const studentSub = sessionSubmissions.find(s => s.studentId === user.id);
@@ -255,7 +256,8 @@ export const getClassById = (req: AuthenticatedRequest, res: Response) => {
         sessionId: i,
         sessionNumber: i,
         title: sessionTitle,
-        deadline: formattedDeadline,
+        deadline: sessionDeadline,
+        isAssigned,
         exerciseGroupId,
         selfStudyCount,
         hasSubmitted: !!studentSub,
@@ -269,7 +271,8 @@ export const getClassById = (req: AuthenticatedRequest, res: Response) => {
         sessionId: i,
         sessionNumber: i,
         title: sessionTitle,
-        deadline: formattedDeadline,
+        deadline: sessionDeadline,
+        isAssigned,
         exerciseGroupId,
         submittedCount: sessionSubmissions.length,
         totalStudents: cls.studentIds ? cls.studentIds.length : 0,

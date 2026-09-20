@@ -42,6 +42,9 @@ export interface Class {
   status: ClassStatus;
   teacherId: string;
   studentIds: string[];
+  sessionExerciseGroupIds?: Record<string | number, string>; // sessionNum -> exerciseGroupId đã gán cho lớp
+  sessionDeadlines?: Record<string | number, string>; // sessionNum -> hạn nộp bài của lớp
+  sessionAssignedAt?: Record<string | number, string>; // sessionNum -> thời điểm gán bài
   createdAt: string;
 }
 
