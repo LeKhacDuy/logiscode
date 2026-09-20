@@ -246,8 +246,10 @@ export const getClassById = (req: AuthenticatedRequest, res: Response) => {
       course?.sessions?.find(s => s.sessionNumber === i)?.title ||
       `Buổi ${i}: Bài học & Thực hành Buổi ${i}`;
 
-    const isAssigned = !!cls.sessionExerciseGroupIds?.[i];
-    const exerciseGroupId = cls.sessionExerciseGroupIds?.[i] || null;
+    const hasSubmissions = sessionSubmissions.length > 0;
+    const isAssigned = !!(cls.sessionExerciseGroupIds?.[i] || hasSubmissions);
+    const exerciseGroupId = cls.sessionExerciseGroupIds?.[i] ||
+      (hasSubmissions ? (course?.sessionExerciseGroupIds?.[i] || 'ex-group-1') : null);
     const sessionDeadline = cls.sessionDeadlines?.[i] || formattedDeadline;
 
     if (user.role === 'STUDENT') {

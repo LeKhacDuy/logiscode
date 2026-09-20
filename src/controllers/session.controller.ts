@@ -38,10 +38,11 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
     const formattedDeadline = cls.sessionDeadlines?.[i] ||
       new Date(createdDate.getTime() + i * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    const isAssigned = !!cls.sessionExerciseGroupIds?.[i];
-    const exerciseGroupId = cls.sessionExerciseGroupIds?.[i] || null;
-
     const sessionSubmissions = submissions.filter(s => s.sessionId === i);
+    const hasSubmissions = sessionSubmissions.length > 0;
+    const isAssigned = !!(cls.sessionExerciseGroupIds?.[i] || hasSubmissions);
+    const exerciseGroupId = cls.sessionExerciseGroupIds?.[i] ||
+      (hasSubmissions ? (course?.sessionExerciseGroupIds?.[i] || 'ex-group-1') : null);
     const sessionSelfStudy = selfStudies.find(ss => ss.sessionId === i);
     const selfStudyMessageCount = sessionSelfStudy ? 1 : 0;
 
@@ -105,8 +106,11 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     course?.sessions?.find(s => s.sessionNumber === sessionNum)?.title ||
     `Buổi ${sessionNum}: Bài học & Thực hành Buổi ${sessionNum}`;
 
-  const isAssigned = !!cls.sessionExerciseGroupIds?.[sessionNum];
-  const assignedExerciseGroupId = cls.sessionExerciseGroupIds?.[sessionNum];
+  const submissions = db.get('submissions').filter(s => s.classId === classId && s.sessionId === sessionNum);
+  const hasSubmissions = submissions.length > 0;
+  const isAssigned = !!(cls.sessionExerciseGroupIds?.[sessionNum] || hasSubmissions);
+  const assignedExerciseGroupId = cls.sessionExerciseGroupIds?.[sessionNum] ||
+    (hasSubmissions ? (course?.sessionExerciseGroupIds?.[sessionNum] || 'ex-group-1') : null);
 
   // Nếu buổi học này chưa được giáo viên giao bài tập cho lớp:
   if (!isAssigned || !assignedExerciseGroupId) {
@@ -131,8 +135,6 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     const exercises = db.get('exercises');
     exerciseGroup = exercises.find(ex => ex.id === assignedExerciseGroupId) || null;
   }
-
-  const submissions = db.get('submissions').filter(s => s.classId === classId && s.sessionId === sessionNum);
 
   let userSubmission = null;
   if (user.role === 'STUDENT') {
