@@ -323,6 +323,7 @@ router.get('/:sessionId/self-study', getSelfStudy);
  *         description: Lưu nội dung tự học thành công.
  */
 router.post('/:sessionId/self-study', requireRoles('TEACHER', 'ADMIN'), updateSelfStudy);
+router.put('/:sessionId/self-study', requireRoles('TEACHER', 'ADMIN'), updateSelfStudy);
 
 /**
  * @swagger

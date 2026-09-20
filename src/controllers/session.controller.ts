@@ -433,9 +433,23 @@ export const gradeSubmission = (req: AuthenticatedRequest, res: Response) => {
 export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
   const { classId, sessionId } = req.params;
   const sessionNum = parseSessionId(sessionId);
+  const user = req.user!;
 
   const selfStudies = db.get('selfStudies');
-  const selfStudy = selfStudies.find(ss => ss.classId === classId && ss.sessionId === sessionNum);
+  const index = selfStudies.findIndex(ss => ss.classId === classId && ss.sessionId === sessionNum);
+  const selfStudy = index !== -1 ? selfStudies[index] : null;
+
+  // Tự động ghi nhận thời gian xem cho học viên khi truy cập bài tự học đã có nội dung
+  if (user && user.role === 'STUDENT' && selfStudy && selfStudy.content && selfStudy.content !== 'Chưa có nội dung tự học cho buổi này.') {
+    if (!selfStudy.viewedBy) {
+      selfStudy.viewedBy = {};
+    }
+    if (!selfStudy.viewedBy[user.id]) {
+      selfStudy.viewedBy[user.id] = new Date().toISOString();
+      selfStudies[index] = selfStudy;
+      db.update('selfStudies', selfStudies);
+    }
+  }
 
   return res.status(200).json({
     success: true,
