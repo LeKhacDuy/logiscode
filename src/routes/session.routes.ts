@@ -253,6 +253,12 @@ router.post(
   gradeSubmission
 );
 
+router.put(
+  '/:sessionId/submissions/:submissionId/grade',
+  requireRoles('TEACHER', 'ADMIN'),
+  gradeSubmission
+);
+
 /**
  * @swagger
  * /api/v1/classes/{classId}/sessions/{sessionId}/self-study:
