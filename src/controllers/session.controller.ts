@@ -141,6 +141,43 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     userSubmission = submissions.find(s => s.studentId === user.id) || null;
   }
 
+  // KIỂM SOÁT BẢO MẬT ĐÁP ÁN:
+  // Học viên chỉ được xem đáp án (correctAnswer & explanation) khi giáo viên ĐÃ CHẤM XONG (userSubmission && userSubmission.score !== undefined).
+  // Nếu chưa làm bài, hoặc đã nộp bài nhưng giáo viên chưa chấm -> Ẩn triệt để correctAnswer & explanation!
+  let exerciseGroupToReturn = exerciseGroup;
+  let userSubmissionToReturn = userSubmission;
+
+  if (user.role === 'STUDENT') {
+    const isGraded = !!(userSubmission && userSubmission.score !== undefined);
+
+    if (!isGraded) {
+      // Ẩn correctAnswer & explanation trong đề bài exerciseGroup
+      if (exerciseGroup && exerciseGroup.sections) {
+        exerciseGroupToReturn = {
+          ...exerciseGroup,
+          sections: exerciseGroup.sections.map((sec: any) => ({
+            ...sec,
+            questions: (sec.questions || []).map((q: any) => {
+              const { correctAnswer, explanation, ...qWithoutAnswer } = q;
+              return qWithoutAnswer;
+            })
+          }))
+        };
+      }
+
+      // Nếu đã nộp bài nhưng chưa được giáo viên chấm xong: Ẩn correctAnswer, explanation, isCorrect trong userSubmission
+      if (userSubmission) {
+        userSubmissionToReturn = {
+          ...userSubmission,
+          answers: (userSubmission.answers || []).map((ans: any) => ({
+            questionId: ans.questionId,
+            answer: ans.answer
+          }))
+        };
+      }
+    }
+  }
+
   const deadline = cls.sessionDeadlines?.[sessionNum] ||
     new Date(new Date(cls.createdAt).getTime() + sessionNum * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -153,8 +190,8 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     deadline,
     assignedAt: cls.sessionAssignedAt?.[sessionNum] || null,
     aiWarningBanner: '⚠️ CẢNH BÁO NGHIÊM CẤM: Hệ thống phát hiện và nghiêm cấm việc sử dụng công cụ AI (ChatGPT, Claude...) để làm bài tập.',
-    exerciseGroup,
-    userSubmission,
+    exerciseGroup: exerciseGroupToReturn,
+    userSubmission: userSubmissionToReturn,
     allSubmissions: user.role !== 'STUDENT' ? submissions : undefined
   });
 };
@@ -288,7 +325,7 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
     audioBlobUrl: audioBlobUrl || undefined,
     score: existingSubIndex !== -1 && submissions[existingSubIndex].score !== undefined 
       ? submissions[existingSubIndex].score 
-      : autoScore,
+      : undefined,
     autoScore,
     correctCount,
     totalQuestions: answers ? answers.length : 0,
@@ -305,16 +342,26 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
 
   db.update('submissions', submissions);
 
+  const isGraded = newSubmission.score !== undefined;
+  const safeSubmission = {
+    ...newSubmission,
+    answers: isGraded
+      ? newSubmission.answers
+      : (newSubmission.answers || []).map((ans: any) => ({
+          questionId: ans.questionId,
+          answer: ans.answer
+        }))
+  };
+
   return res.status(200).json({
     success: true,
     message: isLate 
-      ? `Nộp bài thành công (Ghi nhận: Nộp quá hạn)! Điểm trắc nghiệm tự động: ${autoScore !== undefined ? autoScore + '/100' : 'Đang chờ GV chấm'}` 
-      : `Nộp bài thành công! Điểm trắc nghiệm tự động: ${autoScore !== undefined ? autoScore + '/100' : 'Đang chờ GV chấm'}`,
+      ? `Nộp bài thành công (Ghi nhận: Nộp quá hạn)! Bài làm đang chờ giáo viên chấm điểm.` 
+      : `Nộp bài thành công! Bài làm đang chờ giáo viên chấm điểm.`,
     isLate,
-    autoScore,
-    correctCount,
+    gradingStatus: isGraded ? 'graded' : 'pending',
     totalQuestions: answers ? answers.length : 0,
-    data: newSubmission
+    data: safeSubmission
   });
 };
 
