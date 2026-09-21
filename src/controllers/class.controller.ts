@@ -261,7 +261,8 @@ export const getClassById = (req: AuthenticatedRequest, res: Response) => {
     const isAssigned = !!(cls.sessionExerciseGroupIds?.[i] || hasSubmissions);
     const exerciseGroupId = cls.sessionExerciseGroupIds?.[i] ||
       (hasSubmissions ? (course?.sessionExerciseGroupIds?.[i] || 'ex-group-1') : null);
-    const sessionDeadline = cls.sessionDeadlines?.[i] || formattedDeadline;
+    // Nếu giáo viên chưa gán bài tập cho lớp thì chưa có deadline (deadline = null)
+    const sessionDeadline = isAssigned ? (cls.sessionDeadlines?.[i] || formattedDeadline) : null;
 
     if (user.role === 'STUDENT') {
       const studentSub = sessionSubmissions.find(s => s.studentId === user.id);

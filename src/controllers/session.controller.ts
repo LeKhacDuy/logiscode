@@ -36,15 +36,16 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
   const createdDate = new Date(cls.createdAt);
 
   for (let i = 1; i <= totalSessions; i++) {
-    // Calculate deadline: use class specific deadline if set, otherwise 7 days interval
-    const formattedDeadline = cls.sessionDeadlines?.[i] ||
-      new Date(createdDate.getTime() + i * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
     const sessionSubmissions = submissions.filter(s => s.sessionId === i);
     const hasSubmissions = sessionSubmissions.length > 0;
     const isAssigned = !!(cls.sessionExerciseGroupIds?.[i] || hasSubmissions);
     const exerciseGroupId = cls.sessionExerciseGroupIds?.[i] ||
       (hasSubmissions ? (course?.sessionExerciseGroupIds?.[i] || 'ex-group-1') : null);
+
+    // Calculate deadline: Chỉ có deadline khi bài tập ĐÃ ĐƯỢC GÁN cho lớp (isAssigned: true)
+    const sessionDeadline = isAssigned
+      ? (cls.sessionDeadlines?.[i] || new Date(createdDate.getTime() + i * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+      : null;
     const sessionSelfStudy = selfStudies.find(ss => ss.sessionId === i);
     const selfStudyMessageCount = sessionSelfStudy ? 1 : 0;
 
@@ -57,7 +58,7 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
       sessionList.push({
         sessionId: i,
         title: sessionTitle,
-        deadline: formattedDeadline,
+        deadline: sessionDeadline,
         isAssigned,
         isReviewLocked: studentIsReviewLocked,
         exerciseGroupId,
@@ -75,7 +76,7 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
         exerciseGroupId,
         submittedCount: sessionSubmissions.length,
         totalStudents: cls.studentIds ? cls.studentIds.length : 0,
-        deadline: formattedDeadline,
+        deadline: sessionDeadline,
         selfStudyCount: selfStudyMessageCount
       });
     }
@@ -136,6 +137,8 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
       sessionId: sessionNum,
       sessionTitle,
       isAssigned: false,
+      deadline: null,
+      assignedAt: null,
       status: 'unassigned',
       submissionStatus: 'unassigned',
       gradingStatus: null,
