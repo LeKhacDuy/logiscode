@@ -95,6 +95,7 @@ export const getSessions = (req: AuthenticatedRequest, res: Response) => {
 
 // 2. Get Exercise details for a session (Tab 1)
 export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   const { classId, sessionId } = req.params;
   const sessionNum = parseSessionId(sessionId);
   const user = req.user!;
