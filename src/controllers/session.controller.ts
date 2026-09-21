@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { db } from '../data/db';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
-import { Submission, SelfStudy } from '../types';
+import { Submission, SelfStudy, SubmissionStatus, GradingStatus } from '../types';
 import { isStudentReviewLocked } from './class.controller';
 
 // Helper to parse sessionId flexibly (supports 1, "1", "ses-1", "ses-01", etc.)
@@ -11,6 +11,159 @@ export const parseSessionId = (sessionId: string | undefined): number => {
   if (!isNaN(num)) return num;
   const extracted = parseInt(sessionId.replace(/\D/g, ''), 10);
   return isNaN(extracted) ? 1 : extracted;
+};
+
+// Helper to get exercise group for a session (using snapshot or fallback)
+export const getSessionExerciseGroup = (
+  classId: string,
+  sessionNum: number,
+  assignedExerciseGroupId?: string | null
+) => {
+  const snapshotKey = `${classId}_${sessionNum}`;
+  const snapshots = db.get('exerciseSnapshots') || {};
+  let exerciseGroup: any = snapshots[snapshotKey];
+
+  if (!exerciseGroup) {
+    const classes = db.get('classes');
+    const cls = classes.find(c => c.id === classId);
+    const courses = db.get('courses');
+    const course = cls ? courses.find(c => c.id === cls.courseId) : null;
+
+    const targetGroupId = assignedExerciseGroupId ||
+      cls?.sessionExerciseGroupIds?.[sessionNum] ||
+      course?.sessionExerciseGroupIds?.[sessionNum] ||
+      'ex-group-1';
+
+    const exercises = db.get('exercises');
+    exerciseGroup = exercises.find(ex => ex.id === targetGroupId) || exercises[0] || null;
+  }
+
+  return exerciseGroup;
+};
+
+// Helper to check answer correctness
+export const checkAnswerCorrectness = (studentAnsVal: any, correctAnswer: any): boolean | undefined => {
+  if (correctAnswer === undefined || correctAnswer === null) return undefined;
+  if (studentAnsVal === undefined || studentAnsVal === null) return false;
+
+  if (Array.isArray(correctAnswer)) {
+    if (Array.isArray(studentAnsVal)) {
+      return studentAnsVal.length === correctAnswer.length &&
+        studentAnsVal.every((subAns: any, idx: number) => {
+          const expected = correctAnswer[idx];
+          if (Array.isArray(expected)) {
+            return expected.some((exp: string) => String(exp).trim().toLowerCase() === String(subAns).trim().toLowerCase());
+          }
+          return String(expected).trim().toLowerCase() === String(subAns).trim().toLowerCase();
+        });
+    } else {
+      const s = String(studentAnsVal).trim().toLowerCase();
+      return correctAnswer.some((ca: string) => String(ca).trim().toLowerCase() === s);
+    }
+  }
+
+  const studentStr = String(studentAnsVal).trim().toLowerCase();
+  const correctStr = String(correctAnswer).trim().toLowerCase();
+  return studentStr === correctStr || (studentStr.length === 1 && correctStr.startsWith(studentStr));
+};
+
+// Helper to build sections with student answers embedded into each question
+export const buildSectionsWithStudentAnswers = (
+  exerciseGroup: any,
+  submission: Submission | null | undefined,
+  revealCorrectAnswers: boolean = true
+) => {
+  if (!exerciseGroup || !Array.isArray(exerciseGroup.sections)) return [];
+
+  const answerMap = new Map<string, any>();
+  if (submission && Array.isArray(submission.answers)) {
+    submission.answers.forEach((ans: any) => {
+      answerMap.set(ans.questionId, ans);
+    });
+  }
+
+  return exerciseGroup.sections.map((section: any) => {
+    return {
+      id: section.id,
+      title: section.title,
+      passage: section.passage,
+      audioUrl: section.audioUrl,
+      questions: (section.questions || []).map((q: any) => {
+        const { correctAnswer, explanation, ...cleanQuestion } = q;
+        const studentAns = answerMap.get(q.id);
+        const hasAnswer = studentAns !== undefined;
+        const studentAnswerVal = hasAnswer ? studentAns.answer : null;
+        const studentAudioUrl = (studentAns && studentAns.audioUrl) ||
+          (q.type === 'speaking' && submission?.audioBlobUrl ? submission.audioBlobUrl : undefined);
+
+        const enrichedQuestion: any = {
+          ...cleanQuestion,
+          prompt: q.prompt,
+          question: q.prompt, // Alias
+          questionText: q.prompt, // Alias
+          options: q.options || undefined,
+          studentAnswer: studentAnswerVal,
+          userAnswer: studentAnswerVal, // Alias
+          answer: studentAnswerVal, // Alias
+          studentAudioUrl,
+          hasAnswer
+        };
+
+        if (revealCorrectAnswers) {
+          enrichedQuestion.correctAnswer = correctAnswer;
+          enrichedQuestion.explanation = explanation || '';
+          if (hasAnswer) {
+            if (studentAns.isCorrect !== undefined) {
+              enrichedQuestion.isCorrect = studentAns.isCorrect;
+            } else if (correctAnswer !== undefined) {
+              enrichedQuestion.isCorrect = checkAnswerCorrectness(studentAnswerVal, correctAnswer);
+            }
+          }
+        }
+
+        return enrichedQuestion;
+      })
+    };
+  });
+};
+
+// Helper to enrich a submission with full exercise details, sections, and student profile
+export const enrichSubmissionWithExercise = (
+  sub: Submission,
+  exerciseGroup: any,
+  revealCorrectAnswers: boolean = true,
+  studentUser?: any
+) => {
+  const users = db.get('users');
+  const student = studentUser || users.find(u => u.id === sub.studentId);
+  const isGraded = sub.score !== undefined && sub.score !== null;
+  const sections = buildSectionsWithStudentAnswers(exerciseGroup, sub, revealCorrectAnswers);
+
+  const safeAnswers = revealCorrectAnswers
+    ? sub.answers
+    : (sub.answers || []).map((ans: any) => ({
+        questionId: ans.questionId,
+        answer: ans.answer
+      }));
+
+  return {
+    ...sub,
+    answers: safeAnswers,
+    studentName: student ? student.fullname : 'Học viên',
+    studentEmail: student ? student.email : '',
+    status: (isGraded ? 'graded' : 'submitted') as SubmissionStatus,
+    submissionStatus: (isGraded ? 'graded' : 'submitted') as SubmissionStatus,
+    gradingStatus: (isGraded ? 'graded' : 'pending') as GradingStatus,
+    gradingStatusText: isGraded ? 'Graded' : 'Pending',
+    exerciseGroupId: exerciseGroup?.id || null,
+    exerciseGroupName: exerciseGroup?.name || '',
+    sections,
+    exercise: exerciseGroup ? {
+      id: exerciseGroup.id,
+      name: exerciseGroup.name,
+      sections
+    } : null
+  };
 };
 
 // 1. Get List of Sessions in a Class
@@ -153,55 +306,11 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
   }
 
   // BẢO TOÀN LỊCH SỬ BÀI TẬP (SNAPSHOT ISOLATION PATTERN):
-  const snapshotKey = `${classId}_${sessionNum}`;
-  const snapshots = db.get('exerciseSnapshots') || {};
-  let exerciseGroup: any = snapshots[snapshotKey];
-
-  if (!exerciseGroup) {
-    const exercises = db.get('exercises');
-    exerciseGroup = exercises.find(ex => ex.id === assignedExerciseGroupId) || null;
-  }
+  const exerciseGroup: any = getSessionExerciseGroup(classId, sessionNum, assignedExerciseGroupId);
 
   let userSubmission = null;
   if (user.role === 'STUDENT') {
     userSubmission = submissions.find(s => s.studentId === user.id) || null;
-  }
-
-  // KIỂM SOÁT BẢO MẬT ĐÁP ÁN:
-  // Học viên chỉ được xem đáp án (correctAnswer & explanation) khi giáo viên ĐÃ CHẤM XONG (userSubmission && userSubmission.score !== undefined).
-  // Nếu chưa làm bài, hoặc đã nộp bài nhưng giáo viên chưa chấm -> Ẩn triệt để correctAnswer & explanation!
-  let exerciseGroupToReturn = exerciseGroup;
-  let userSubmissionToReturn = userSubmission;
-
-  if (user.role === 'STUDENT') {
-    const isGraded = !!(userSubmission && userSubmission.score !== undefined);
-
-    if (!isGraded) {
-      // Ẩn correctAnswer & explanation trong đề bài exerciseGroup
-      if (exerciseGroup && exerciseGroup.sections) {
-        exerciseGroupToReturn = {
-          ...exerciseGroup,
-          sections: exerciseGroup.sections.map((sec: any) => ({
-            ...sec,
-            questions: (sec.questions || []).map((q: any) => {
-              const { correctAnswer, explanation, ...qWithoutAnswer } = q;
-              return qWithoutAnswer;
-            })
-          }))
-        };
-      }
-
-      // Nếu đã nộp bài nhưng chưa được giáo viên chấm xong: Ẩn correctAnswer, explanation, isCorrect trong userSubmission
-      if (userSubmission) {
-        userSubmissionToReturn = {
-          ...userSubmission,
-          answers: (userSubmission.answers || []).map((ans: any) => ({
-            questionId: ans.questionId,
-            answer: ans.answer
-          }))
-        };
-      }
-    }
   }
 
   const isGraded = !!(userSubmission && userSubmission.score !== undefined && userSubmission.score !== null);
@@ -216,8 +325,39 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
   const submissionStatusText = statusText;
   const gradingStatus = hasSubmitted ? (isGraded ? 'graded' : 'pending') : null;
 
+  let exerciseGroupToReturn = null;
+  let userSubmissionToReturn = null;
+
+  if (user.role === 'STUDENT') {
+    const revealAnswers = isGraded;
+    const sections = buildSectionsWithStudentAnswers(exerciseGroup, userSubmission, revealAnswers);
+    exerciseGroupToReturn = exerciseGroup ? {
+      ...exerciseGroup,
+      sections
+    } : null;
+
+    userSubmissionToReturn = userSubmission
+      ? enrichSubmissionWithExercise(userSubmission, exerciseGroup, revealAnswers, user)
+      : null;
+  } else {
+    // TEACHER or ADMIN view: always see complete exercise with correct answers
+    const sections = buildSectionsWithStudentAnswers(exerciseGroup, null, true);
+    exerciseGroupToReturn = exerciseGroup ? {
+      ...exerciseGroup,
+      sections
+    } : null;
+  }
+
   const deadline = cls.sessionDeadlines?.[sessionNum] ||
     new Date(new Date(cls.createdAt).getTime() + sessionNum * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  const users = db.get('users');
+  const enrichedAllSubmissions = user.role !== 'STUDENT'
+    ? submissions.map(sub => {
+        const student = users.find(u => u.id === sub.studentId);
+        return enrichSubmissionWithExercise(sub, exerciseGroup, true, student);
+      })
+    : undefined;
 
   return res.status(200).json({
     success: true,
@@ -236,12 +376,8 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     assignedAt: cls.sessionAssignedAt?.[sessionNum] || null,
     aiWarningBanner: '⚠️ CẢNH BÁO NGHIÊM CẤM: Hệ thống phát hiện và nghiêm cấm việc sử dụng công cụ AI (ChatGPT, Claude...) để làm bài tập.',
     exerciseGroup: exerciseGroupToReturn,
-    userSubmission: userSubmissionToReturn ? {
-      ...userSubmissionToReturn,
-      status: isGraded ? 'graded' : 'submitted',
-      gradingStatus: isGraded ? 'graded' : 'pending'
-    } : null,
-    allSubmissions: user.role !== 'STUDENT' ? submissions : undefined
+    userSubmission: userSubmissionToReturn,
+    allSubmissions: enrichedAllSubmissions
   });
 };
 
@@ -400,16 +536,13 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
 
   db.update('submissions', submissions);
 
-  const isGraded = newSubmission.score !== undefined;
-  const safeSubmission = {
-    ...newSubmission,
-    answers: isGraded
-      ? newSubmission.answers
-      : (newSubmission.answers || []).map((ans: any) => ({
-          questionId: ans.questionId,
-          answer: ans.answer
-        }))
-  };
+  const isGraded = newSubmission.score !== undefined && newSubmission.score !== null;
+  const safeSubmission = enrichSubmissionWithExercise(
+    newSubmission,
+    exerciseGroup,
+    isGraded,
+    user
+  );
 
   return res.status(200).json({
     success: true,
@@ -439,33 +572,69 @@ export const getSessionSubmissions = (req: AuthenticatedRequest, res: Response) 
 
   const users = db.get('users');
   const submissions = db.get('submissions').filter(s => s.classId === classId && s.sessionId === sessionNum);
+  const exerciseGroup = getSessionExerciseGroup(classId, sessionNum);
 
   const enrichedSubmissions = submissions.map(sub => {
     const student = users.find(u => u.id === sub.studentId);
-    const isGraded = sub.score !== undefined && sub.score !== null;
-    return {
-      ...sub,
-      studentName: student ? student.fullname : 'Học viên',
-      studentEmail: student ? student.email : '',
-      status: isGraded ? 'graded' : 'submitted',
-      submissionStatus: isGraded ? 'graded' : 'submitted',
-      gradingStatus: isGraded ? 'graded' : 'pending',
-      gradingStatusText: isGraded ? 'Graded' : 'Pending'
-    };
+    return enrichSubmissionWithExercise(sub, exerciseGroup, true, student);
   });
 
   return res.status(200).json({
     success: true,
     classId,
     sessionId: sessionNum,
+    exerciseGroup: exerciseGroup ? {
+      id: exerciseGroup.id,
+      name: exerciseGroup.name,
+      sections: buildSectionsWithStudentAnswers(exerciseGroup, null, true)
+    } : null,
     totalSubmissions: enrichedSubmissions.length,
     data: enrichedSubmissions
   });
 };
 
+// 3.6 Get single submission detail by ID (Teacher, Admin, or Student viewing own submission)
+export const getSubmissionById = (req: AuthenticatedRequest, res: Response) => {
+  const { classId, sessionId, submissionId } = req.params;
+  const sessionNum = parseSessionId(sessionId);
+  const user = req.user!;
+
+  const classes = db.get('classes');
+  const cls = classes.find(c => c.id === classId);
+  if (!cls) {
+    return res.status(404).json({ success: false, message: 'Lớp học không tồn tại.' });
+  }
+
+  const submissions = db.get('submissions');
+  const sub = submissions.find(s => s.id === submissionId && s.classId === classId && s.sessionId === sessionNum);
+  if (!sub) {
+    return res.status(404).json({ success: false, message: 'Bài nộp không tồn tại.' });
+  }
+
+  if (user.role === 'STUDENT' && sub.studentId !== user.id) {
+    return res.status(403).json({ success: false, message: 'Bạn không có quyền xem bài nộp của học viên khác.' });
+  }
+
+  const exerciseGroup = getSessionExerciseGroup(classId, sessionNum);
+  const isGraded = sub.score !== undefined && sub.score !== null;
+  const revealCorrectAnswers = user.role !== 'STUDENT' || isGraded;
+
+  const users = db.get('users');
+  const student = users.find(u => u.id === sub.studentId);
+  const enrichedSub = enrichSubmissionWithExercise(sub, exerciseGroup, revealCorrectAnswers, student);
+
+  return res.status(200).json({
+    success: true,
+    classId,
+    sessionId: sessionNum,
+    data: enrichedSub
+  });
+};
+
 // 4. Grade Submission (Tab 1 - Teacher mở Popup chấm điểm và nhận xét)
 export const gradeSubmission = (req: AuthenticatedRequest, res: Response) => {
-  const { submissionId } = req.params;
+  const { classId, sessionId, submissionId } = req.params;
+  const sessionNum = parseSessionId(sessionId);
   const { score, feedback } = req.body;
 
   if (score === undefined || score < 0 || score > 100) {
@@ -484,10 +653,18 @@ export const gradeSubmission = (req: AuthenticatedRequest, res: Response) => {
 
   db.update('submissions', submissions);
 
+  const finalClassId = classId || submissions[subIndex].classId;
+  const finalSessionNum = sessionNum || submissions[subIndex].sessionId;
+  const exerciseGroup = getSessionExerciseGroup(finalClassId, finalSessionNum);
+
+  const users = db.get('users');
+  const student = users.find(u => u.id === submissions[subIndex].studentId);
+  const enrichedSub = enrichSubmissionWithExercise(submissions[subIndex], exerciseGroup, true, student);
+
   return res.status(200).json({
     success: true,
     message: 'Chấm bài và lưu nhận xét thành công!',
-    data: submissions[subIndex]
+    data: enrichedSub
   });
 };
 

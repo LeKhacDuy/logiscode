@@ -4,6 +4,7 @@ import {
   getSessionExercise,
   assignSessionExercise,
   getSessionSubmissions,
+  getSubmissionById,
   submitSessionExercise,
   gradeSubmission,
   getSelfStudy,
@@ -195,12 +196,56 @@ router.post('/:sessionId/submit', requireRoles('STUDENT'), submitSessionExercise
  *           type: integer
  *     responses:
  *       200:
- *         description: Trả về danh sách bài nộp của cả lớp cho buổi học. Mỗi bài nộp có `gradingStatus`: 'graded' (đã chấm) | 'pending' (chưa chấm) và `gradingStatusText`: 'Đã chấm' | 'Chưa chấm'.
+ *         description: "Trả về danh sách bài nộp của cả lớp cho buổi học. Mỗi bài nộp có gradingStatus ('graded' | 'pending') và gradingStatusText ('Graded' | 'Pending')."
  */
 router.get(
   '/:sessionId/submissions',
   requireRoles('TEACHER', 'ADMIN'),
   getSessionSubmissions
+);
+
+/**
+ * @swagger
+ * /api/v1/classes/{classId}/sessions/{sessionId}/submissions/{submissionId}:
+ *   get:
+ *     summary: Xem chi tiết bài nộp của học viên (Kèm câu hỏi, đáp án đúng, giải thích và câu trả lời của học viên trong từng câu)
+ *     description: |
+ *       - Giáo viên / Admin: Xem chi tiết để chấm bài trong popup "Chấm Bài".
+ *       - Học viên: Xem lại bài làm của mình sau khi giáo viên chấm xong.
+ *       - Cấu trúc `sections`: Chứa danh sách câu hỏi với `studentAnswer`, `userAnswer`, `isCorrect`, `correctAnswer`, và `explanation`.
+ *     tags: [Sessions & Lesson Details]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: cls-ielts-01
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *       - in: path
+ *         name: submissionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: sub-1
+ *     responses:
+ *       200:
+ *         description: Trả về chi tiết bài nộp đã gộp format đề bài và câu trả lời của học viên.
+ *       403:
+ *         description: Học viên không có quyền xem bài làm của người khác.
+ *       404:
+ *         description: Bài nộp không tồn tại.
+ */
+router.get(
+  '/:sessionId/submissions/:submissionId',
+  getSubmissionById
 );
 
 /**

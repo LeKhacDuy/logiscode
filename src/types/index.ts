@@ -97,8 +97,12 @@ export interface Submission {
   classId: string;
   sessionId: number;
   studentId: string;
+  studentName?: string;
+  studentEmail?: string;
   status?: SubmissionStatus;
+  submissionStatus?: SubmissionStatus;
   gradingStatus?: GradingStatus;
+  gradingStatusText?: string;
   answers: SubmissionAnswer[];
   audioBlobUrl?: string; // For speaking exercise upload
   score?: number; // Điểm tổng kết do giáo viên chấm (0-100)
@@ -108,6 +112,8 @@ export interface Submission {
   feedback?: string;
   isLate: boolean;
   submittedAt: string;
+  sections?: ExerciseSection[] | any[];
+  exercise?: any;
 }
 
 
