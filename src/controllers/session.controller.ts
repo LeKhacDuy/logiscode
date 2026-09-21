@@ -82,7 +82,8 @@ export const buildSectionsWithStudentAnswers = (
     });
   }
 
-  return exerciseGroup.sections.map((section: any) => {
+  const matchedQuestionIds = new Set<string>();
+  const sectionsResult = exerciseGroup.sections.map((section: any) => {
     return {
       id: section.id,
       title: section.title,
@@ -121,10 +122,59 @@ export const buildSectionsWithStudentAnswers = (
           }
         }
 
+        if (hasAnswer) {
+          matchedQuestionIds.add(q.id);
+        }
+
         return enrichedQuestion;
       })
     };
   });
+
+  // Failsafe: if the submission contains answers to questions that were not in the exercise group sections,
+  // append them in a fallback section so teachers can still see and grade them.
+  if (submission && Array.isArray(submission.answers)) {
+    const unmatched = submission.answers.filter((a: any) => !matchedQuestionIds.has(a.questionId));
+    if (unmatched.length > 0) {
+      sectionsResult.push({
+        id: 'sec-additional',
+        title: 'Phần câu hỏi bổ sung / Đã nộp',
+        questions: unmatched.map((ans: any) => {
+          const studentAnsVal = ans.answer;
+          const isSpeaking = typeof studentAnsVal === 'string' && (studentAnsVal.endsWith('.mp3') || studentAnsVal.includes('soundhelix') || studentAnsVal.includes('drive.google.com'));
+          const studentAudioUrl = ans.audioUrl || (isSpeaking ? studentAnsVal : submission.audioBlobUrl);
+
+          const qObj: any = {
+            id: ans.questionId,
+            type: ans.type || (isSpeaking ? 'speaking' : (typeof studentAnsVal === 'string' && studentAnsVal.length > 50 ? 'essay' : 'multiple_choice')),
+            prompt: ans.prompt || ans.question || `Câu hỏi (${ans.questionId})`,
+            question: ans.prompt || ans.question || `Câu hỏi (${ans.questionId})`,
+            questionText: ans.prompt || ans.question || `Câu hỏi (${ans.questionId})`,
+            options: ans.options || undefined,
+            studentAnswer: studentAnsVal,
+            userAnswer: studentAnsVal,
+            answer: studentAnsVal,
+            studentAudioUrl,
+            hasAnswer: true
+          };
+
+          if (revealCorrectAnswers) {
+            qObj.correctAnswer = ans.correctAnswer;
+            qObj.explanation = ans.explanation || '';
+            if (ans.isCorrect !== undefined) {
+              qObj.isCorrect = ans.isCorrect;
+            } else if (ans.correctAnswer !== undefined) {
+              qObj.isCorrect = checkAnswerCorrectness(studentAnsVal, ans.correctAnswer);
+            }
+          }
+
+          return qObj;
+        })
+      });
+    }
+  }
+
+  return sectionsResult;
 };
 
 // Helper to enrich a submission with full exercise details, sections, and student profile
