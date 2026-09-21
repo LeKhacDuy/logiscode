@@ -657,19 +657,34 @@ export const getSessionSubmissions = (req: AuthenticatedRequest, res: Response) 
     return res.status(404).json({ success: false, message: 'Lớp học không tồn tại.' });
   }
 
+  const courses = db.get('courses');
+  const course = courses.find(c => c.id === cls.courseId);
+  const sessionTitle = course?.sessionTitles?.[sessionNum] ||
+    course?.sessions?.find(s => s.sessionNumber === sessionNum)?.title ||
+    `Buổi ${sessionNum}: Bài học & Thực hành Buổi ${sessionNum}`;
+
   const users = db.get('users');
   const submissions = db.get('submissions').filter(s => s.classId === classId && s.sessionId === sessionNum);
   const exerciseGroup = getSessionExerciseGroup(classId, sessionNum);
 
   const enrichedSubmissions = submissions.map(sub => {
     const student = users.find(u => u.id === sub.studentId);
-    return enrichSubmissionWithExercise(sub, exerciseGroup, true, student);
+    const enriched = enrichSubmissionWithExercise(sub, exerciseGroup, true, student);
+    return {
+      ...enriched,
+      sessionTitle,
+      lessonTitle: sessionTitle
+    };
   });
 
   return res.status(200).json({
     success: true,
     classId,
+    className: cls.name,
     sessionId: sessionNum,
+    sessionTitle,
+    lessonTitle: sessionTitle,
+    title: sessionTitle,
     exerciseGroup: exerciseGroup ? {
       id: exerciseGroup.id,
       name: exerciseGroup.name,
@@ -692,6 +707,12 @@ export const getSubmissionById = (req: AuthenticatedRequest, res: Response) => {
     return res.status(404).json({ success: false, message: 'Lớp học không tồn tại.' });
   }
 
+  const courses = db.get('courses');
+  const course = courses.find(c => c.id === cls.courseId);
+  const sessionTitle = course?.sessionTitles?.[sessionNum] ||
+    course?.sessions?.find(s => s.sessionNumber === sessionNum)?.title ||
+    `Buổi ${sessionNum}: Bài học & Thực hành Buổi ${sessionNum}`;
+
   const submissions = db.get('submissions');
   const sub = submissions.find(s => s.id === submissionId && s.classId === classId && s.sessionId === sessionNum);
   if (!sub) {
@@ -713,8 +734,16 @@ export const getSubmissionById = (req: AuthenticatedRequest, res: Response) => {
   return res.status(200).json({
     success: true,
     classId,
+    className: cls.name,
     sessionId: sessionNum,
-    data: enrichedSub
+    sessionTitle,
+    lessonTitle: sessionTitle,
+    title: sessionTitle,
+    data: {
+      ...enrichedSub,
+      sessionTitle,
+      lessonTitle: sessionTitle
+    }
   });
 };
 
