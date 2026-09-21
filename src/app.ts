@@ -30,9 +30,18 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Swagger UI Documentation & FE Test Interface
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api-docs', (_req: express.Request, res: express.Response, next: express.NextFunction) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+}, swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
 app.get('/api-docs.json', (_req, res) => {
   res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.send(swaggerSpec);
 });
 

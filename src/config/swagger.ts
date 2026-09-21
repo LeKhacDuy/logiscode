@@ -5,9 +5,10 @@ const options: swaggerJsdoc.Options = {
     openapi: '3.0.0',
     info: {
       title: 'EduManage Class & Course Management System API',
-      version: '1.0.0',
+      version: '1.3.0 (Latest: Self-Study & Lock Review)',
       description: `
 ### 🚀 Tài liệu & Giao diện Test API dành cho Lập trình viên Frontend (FE Dev)
+**Cập nhật mới nhất**: Đã bổ sung đầy đủ bộ API **Self-Study (Bài tập tự học)**, **Tracking báo cáo lượt xem**, **Gán bài tập sau buổi học**, **Chấm điểm giáo viên** và **Khóa quyền xem lại bài cũ**!
 
 Hệ thống cung cấp đầy đủ các RESTful API phục vụ hệ thống Quản lý Lớp học & Khóa học theo đúng ma trận phân quyền: **ADMIN**, **GIÁO VIÊN**, và **HỌC VIÊN**.
 
