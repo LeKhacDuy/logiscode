@@ -61,20 +61,30 @@ export const createExercise = (req: Request, res: Response) => {
     name: name.trim(),
     status: status === 'inactive' ? 'inactive' : 'active',
     sections: Array.isArray(sections)
-      ? sections.map((sec, secIdx) => ({
-          id: sec.id || `sec-${Date.now()}-${secIdx}`,
-          title: sec.title || '',
-          passage: sec.passage !== undefined ? sec.passage : (sec.content !== undefined ? sec.content : undefined), // Đoạn văn (optional)
-          audioUrl: sec.audioUrl !== undefined ? sec.audioUrl : undefined, // Link audio của Section (optional)
-          questions: (sec.questions || []).map((q: any, qIdx: number) => ({
-            id: q.id || `q-${Date.now()}-${qIdx}`,
-            type: q.type || 'multiple_choice',
-            prompt: q.prompt !== undefined ? q.prompt : '',
-            options: Array.isArray(q.options) ? q.options : undefined,
-            correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : undefined, // string hoặc string[] cho fill_blank
-            explanation: q.explanation !== undefined ? q.explanation : undefined
-          }))
-        }))
+      ? (() => {
+          const seenQuestionIds = new Set<string>();
+          return sections.map((sec, secIdx) => ({
+            id: sec.id || `sec-${Date.now()}-${secIdx}`,
+            title: sec.title || '',
+            passage: sec.passage !== undefined ? sec.passage : (sec.content !== undefined ? sec.content : undefined),
+            audioUrl: sec.audioUrl !== undefined ? sec.audioUrl : undefined,
+            questions: (sec.questions || []).map((q: any, qIdx: number) => {
+              let finalId = q.id;
+              if (!finalId || seenQuestionIds.has(finalId)) {
+                finalId = `q-${Date.now()}-${secIdx}-${qIdx}-${Math.random().toString(36).substring(2, 6)}`;
+              }
+              seenQuestionIds.add(finalId);
+              return {
+                id: finalId,
+                type: q.type || 'multiple_choice',
+                prompt: q.prompt !== undefined ? q.prompt : '',
+                options: Array.isArray(q.options) ? q.options : undefined,
+                correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : undefined,
+                explanation: q.explanation !== undefined ? q.explanation : undefined
+              };
+            })
+          }));
+        })()
       : [],
     createdAt: new Date().toISOString()
   };
@@ -137,19 +147,27 @@ export const updateExercise = (req: Request, res: Response) => {
 
   // QUY TẮC: Cho phép cập nhật trường đoạn văn passage (optional), audioUrl (optional), câu hỏi, câu trả lời, đáp án đúng
   if (sections && Array.isArray(sections)) {
+    const seenQuestionIds = new Set<string>();
     exercise.sections = sections.map((sec, secIdx) => ({
       id: sec.id || `sec-${Date.now()}-${secIdx}`,
       title: sec.title || '',
-      passage: sec.passage !== undefined ? sec.passage : (sec.content !== undefined ? sec.content : undefined), // Đoạn văn (optional)
-      audioUrl: sec.audioUrl !== undefined ? sec.audioUrl : undefined, // Link audio cho cả Section (optional)
-      questions: (sec.questions || []).map((q: any, qIdx: number) => ({
-        id: q.id || `q-${Date.now()}-${qIdx}`,
-        type: q.type || 'multiple_choice',
-        prompt: q.prompt !== undefined ? q.prompt : '',
-        options: Array.isArray(q.options) ? q.options : undefined,
-        correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : undefined, // string hoặc string[] cho fill_blank
-        explanation: q.explanation !== undefined ? q.explanation : undefined
-      }))
+      passage: sec.passage !== undefined ? sec.passage : (sec.content !== undefined ? sec.content : undefined),
+      audioUrl: sec.audioUrl !== undefined ? sec.audioUrl : undefined,
+      questions: (sec.questions || []).map((q: any, qIdx: number) => {
+        let finalId = q.id;
+        if (!finalId || seenQuestionIds.has(finalId)) {
+          finalId = `q-${Date.now()}-${secIdx}-${qIdx}-${Math.random().toString(36).substring(2, 6)}`;
+        }
+        seenQuestionIds.add(finalId);
+        return {
+          id: finalId,
+          type: q.type || 'multiple_choice',
+          prompt: q.prompt !== undefined ? q.prompt : '',
+          options: Array.isArray(q.options) ? q.options : undefined,
+          correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : undefined,
+          explanation: q.explanation !== undefined ? q.explanation : undefined
+        };
+      })
     }));
   }
 

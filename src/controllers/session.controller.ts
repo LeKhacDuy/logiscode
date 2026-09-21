@@ -75,14 +75,23 @@ export const buildSectionsWithStudentAnswers = (
 ) => {
   if (!exerciseGroup || !Array.isArray(exerciseGroup.sections)) return [];
 
-  const answerMap = new Map<string, any>();
+  const answerCompoundMap = new Map<string, any>();
+  const answerIdMap = new Map<string, any>();
+
   if (submission && Array.isArray(submission.answers)) {
     submission.answers.forEach((ans: any) => {
-      answerMap.set(ans.questionId, ans);
+      if (ans.sectionId && ans.questionId) {
+        answerCompoundMap.set(`${ans.sectionId}::${ans.questionId}`, ans);
+      }
+      if (ans.questionId) {
+        if (!answerIdMap.has(ans.questionId)) {
+          answerIdMap.set(ans.questionId, ans);
+        }
+      }
     });
   }
 
-  const matchedQuestionIds = new Set<string>();
+  const matchedQuestionKeys = new Set<string>();
   const sectionsResult = exerciseGroup.sections.map((section: any) => {
     return {
       id: section.id,
@@ -91,11 +100,12 @@ export const buildSectionsWithStudentAnswers = (
       audioUrl: section.audioUrl,
       questions: (section.questions || []).map((q: any) => {
         const { correctAnswer, explanation, ...cleanQuestion } = q;
-        const studentAns = answerMap.get(q.id);
+        const studentAns = (section.id && answerCompoundMap.get(`${section.id}::${q.id}`)) || answerIdMap.get(q.id);
         const hasAnswer = studentAns !== undefined;
-        const studentAnswerVal = hasAnswer ? studentAns.answer : null;
-        const studentAudioUrl = (studentAns && studentAns.audioUrl) ||
-          (q.type === 'speaking' && submission?.audioBlobUrl ? submission.audioBlobUrl : undefined);
+        const studentAnswerVal = hasAnswer ? (studentAns.answer !== undefined ? studentAns.answer : studentAns.studentAnswer) : null;
+        const studentAudioUrl = (studentAns && (studentAns.audioUrl || studentAns.studentAudioUrl)) ||
+          (q.type === 'speaking' && submission?.audioBlobUrl ? submission.audioBlobUrl : undefined) ||
+          (typeof studentAnswerVal === 'string' && (studentAnswerVal.includes('.mp3') || studentAnswerVal.includes('soundhelix') || studentAnswerVal.includes('drive.google.com') || studentAnswerVal.includes('google.com')) ? studentAnswerVal : undefined);
 
         const enrichedQuestion: any = {
           ...cleanQuestion,
@@ -123,7 +133,8 @@ export const buildSectionsWithStudentAnswers = (
         }
 
         if (hasAnswer) {
-          matchedQuestionIds.add(q.id);
+          if (section.id && q.id) matchedQuestionKeys.add(`${section.id}::${q.id}`);
+          if (q.id) matchedQuestionKeys.add(q.id);
         }
 
         return enrichedQuestion;
@@ -133,15 +144,23 @@ export const buildSectionsWithStudentAnswers = (
 
   // Failsafe: if the submission contains answers to questions that were not in the exercise group sections,
   // append them in a fallback section so teachers can still see and grade them.
+  // Failsafe: if the submission contains answers to questions that were not in the exercise group sections,
+  // append them in a fallback section so teachers can still see and grade them.
   if (submission && Array.isArray(submission.answers)) {
-    const unmatched = submission.answers.filter((a: any) => !matchedQuestionIds.has(a.questionId));
+    const unmatched = submission.answers.filter((a: any) => {
+      const compoundKey = a.sectionId && a.questionId ? `${a.sectionId}::${a.questionId}` : null;
+      if (compoundKey && matchedQuestionKeys.has(compoundKey)) return false;
+      if (a.questionId && matchedQuestionKeys.has(a.questionId)) return false;
+      return true;
+    });
+
     if (unmatched.length > 0) {
       sectionsResult.push({
         id: 'sec-additional',
         title: 'Phần câu hỏi bổ sung / Đã nộp',
         questions: unmatched.map((ans: any) => {
-          const studentAnsVal = ans.answer;
-          const isSpeaking = typeof studentAnsVal === 'string' && (studentAnsVal.endsWith('.mp3') || studentAnsVal.includes('soundhelix') || studentAnsVal.includes('drive.google.com'));
+          const studentAnsVal = ans.answer !== undefined ? ans.answer : ans.studentAnswer;
+          const isSpeaking = typeof studentAnsVal === 'string' && (studentAnsVal.endsWith('.mp3') || studentAnsVal.includes('soundhelix') || studentAnsVal.includes('drive.google.com') || studentAnsVal.includes('google.com'));
           const studentAudioUrl = ans.audioUrl || (isSpeaking ? studentAnsVal : submission.audioBlobUrl);
 
           const qObj: any = {
@@ -435,7 +454,8 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
 export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) => {
   const { classId, sessionId } = req.params;
   const sessionNum = parseSessionId(sessionId);
-  const { answers, audioBlobUrl } = req.body;
+  const rawAnswers = Array.isArray(req.body) ? req.body : (req.body?.answers || []);
+  let effectiveAudioBlobUrl = req.body?.audioBlobUrl;
   const user = req.user!;
 
   if (user.role !== 'STUDENT') {
@@ -493,16 +513,17 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
     db.update('exerciseSnapshots', snapshots);
   }
 
-
-
-
   // Map all questions in the exercise group
   const questionMap = new Map<string, any>();
+  const questionCompoundMap = new Map<string, any>();
   let totalObjectiveQuestions = 0;
   if (exerciseGroup && exerciseGroup.sections) {
-    exerciseGroup.sections.forEach(sec => {
-      sec.questions?.forEach(q => {
+    exerciseGroup.sections.forEach((sec: any) => {
+      sec.questions?.forEach((q: any) => {
         questionMap.set(q.id, q);
+        if (sec.id) {
+          questionCompoundMap.set(`${sec.id}::${q.id}`, q);
+        }
         if (['multiple_choice', 'fill_blank', 'listening'].includes(q.type) && q.correctAnswer) {
           totalObjectiveQuestions++;
         }
@@ -512,17 +533,24 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
 
   // Grade student answers
   let correctCount = 0;
-  const gradedAnswers = (answers || []).map((ans: any) => {
-    const q = questionMap.get(ans.questionId);
+  const gradedAnswers = rawAnswers.map((ans: any) => {
+    const studentAnsVal = ans.answer !== undefined ? ans.answer : ans.studentAnswer;
+    const q = (ans.sectionId && questionCompoundMap.get(`${ans.sectionId}::${ans.questionId}`)) || questionMap.get(ans.questionId);
+
+    // Support speaking audio link passed in studentAnswer
+    const isSpeakingAnswer = typeof studentAnsVal === 'string' && (studentAnsVal.includes('.mp3') || studentAnsVal.includes('soundhelix') || studentAnsVal.includes('drive.google.com') || studentAnsVal.includes('google.com'));
+    if (isSpeakingAnswer && !effectiveAudioBlobUrl) {
+      effectiveAudioBlobUrl = studentAnsVal;
+    }
+
     if (q && q.correctAnswer) {
       let isCorrect = false;
 
       // XỬ LÝ NHIỀU ĐÁP ÁN ĐÚNG CHO DẠNG FILL_BLANK (Alternative valid answers hoặc Multiple Blanks)
       if (Array.isArray(q.correctAnswer)) {
-        if (Array.isArray(ans.answer)) {
-          // Trường hợp câu hỏi có nhiều ô trống và học viên gửi mảng câu trả lời
-          isCorrect = ans.answer.length === q.correctAnswer.length &&
-            ans.answer.every((subAns: any, idx: number) => {
+        if (Array.isArray(studentAnsVal)) {
+          isCorrect = studentAnsVal.length === q.correctAnswer.length &&
+            studentAnsVal.every((subAns: any, idx: number) => {
               const expected = q.correctAnswer[idx];
               if (Array.isArray(expected)) {
                 return expected.some((exp: string) => String(exp).trim().toLowerCase() === String(subAns).trim().toLowerCase());
@@ -530,12 +558,11 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
               return String(expected).trim().toLowerCase() === String(subAns).trim().toLowerCase();
             });
         } else {
-          // Trường hợp 1 ô trống nhưng có nhiều đáp án chấp nhận được (vd: ["100", "one hundred", "100°C"])
-          const studentAnsStr = String(ans.answer || '').trim().toLowerCase();
+          const studentAnsStr = String(studentAnsVal || '').trim().toLowerCase();
           isCorrect = q.correctAnswer.some((ca: string) => String(ca).trim().toLowerCase() === studentAnsStr);
         }
       } else {
-        const studentAnsStr = String(ans.answer || '').trim().toLowerCase();
+        const studentAnsStr = String(studentAnsVal || '').trim().toLowerCase();
         const correctStr = String(q.correctAnswer).trim().toLowerCase();
         isCorrect = studentAnsStr === correctStr || (studentAnsStr.length === 1 && correctStr.startsWith(studentAnsStr));
       }
@@ -544,7 +571,10 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
 
       return {
         questionId: ans.questionId,
-        answer: ans.answer,
+        sectionId: ans.sectionId || undefined,
+        answer: studentAnsVal,
+        studentAnswer: studentAnsVal,
+        type: ans.type || q.type,
         isCorrect,
         correctAnswer: q.correctAnswer,
         explanation: q.explanation || ''
@@ -553,10 +583,12 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
 
     return {
       questionId: ans.questionId,
-      answer: ans.answer
+      sectionId: ans.sectionId || undefined,
+      answer: studentAnsVal,
+      studentAnswer: studentAnsVal,
+      type: ans.type || q?.type
     };
   });
-
 
   const autoScore = totalObjectiveQuestions > 0 ? Math.round((correctCount / totalObjectiveQuestions) * 100) : undefined;
 
@@ -566,13 +598,13 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
     sessionId: sessionNum,
     studentId: user.id,
     answers: gradedAnswers,
-    audioBlobUrl: audioBlobUrl || undefined,
+    audioBlobUrl: effectiveAudioBlobUrl || undefined,
     score: existingSubIndex !== -1 && submissions[existingSubIndex].score !== undefined 
       ? submissions[existingSubIndex].score 
       : undefined,
     autoScore,
     correctCount,
-    totalQuestions: answers ? answers.length : 0,
+    totalQuestions: rawAnswers ? rawAnswers.length : 0,
     feedback: existingSubIndex !== -1 ? submissions[existingSubIndex].feedback : undefined,
     isLate,
     submittedAt: now.toISOString()
@@ -603,7 +635,7 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
     gradingStatus: isGraded ? 'graded' : 'pending',
     status: isGraded ? 'graded' : 'submitted',
     submissionStatus: isGraded ? 'graded' : 'submitted',
-    totalQuestions: answers ? answers.length : 0,
+    totalQuestions: rawAnswers ? rawAnswers.length : 0,
     data: safeSubmission
   });
 };

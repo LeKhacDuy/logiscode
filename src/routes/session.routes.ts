@@ -135,6 +135,11 @@ router.post(
  * /api/v1/classes/{classId}/sessions/{sessionId}/submit:
  *   post:
  *     summary: Tab 1 - Nộp bài tập (Học viên) - Hỗ trợ Trắc nghiệm, Tự luận, Điền từ, Listening, Speaking
+ *     description: |
+ *       - Hỗ trợ gửi body dạng Object `{ answers: [...], audioBlobUrl: "..." }` hoặc gửi trực tiếp mảng `[ ... ]`.
+ *       - Trong mỗi câu trả lời, chấp nhận cả `answer` hoặc `studentAnswer`.
+ *       - Có thể truyền kèm `sectionId` để phân định chính xác câu hỏi giữa các phần.
+ *       - Đối với câu hỏi Speaking, có thể gửi link audio trong `studentAnswer` hoặc qua `audioBlobUrl`.
  *     tags: [Sessions & Lesson Details]
  *     security:
  *       - bearerAuth: []
@@ -161,11 +166,34 @@ router.post(
  *                 items:
  *                   type: object
  *                   properties:
+ *                     sectionId:
+ *                       type: string
+ *                       example: sec-1
  *                     questionId:
  *                       type: string
+ *                       example: q-mc-1
+ *                     studentAnswer:
+ *                       type: string
+ *                       example: B. She has finished her assignment already.
  *                     answer:
  *                       type: string
- *                 example: [{ "questionId": "q-mc-1", "answer": "B. She has finished her assignment already." }, { "questionId": "q-fb-1", "answer": "since" }]
+ *                       example: B. She has finished her assignment already.
+ *                     type:
+ *                       type: string
+ *                       example: multiple_choice
+ *                 example:
+ *                   - sectionId: "sec-1788247761592-1"
+ *                     questionId: "38d8182f-d06a-4d39-9fd6-acc4fcf83a88"
+ *                     studentAnswer: ["qw", "qwe"]
+ *                     type: "fill_blank"
+ *                   - sectionId: "sec-1788247761592-2"
+ *                     questionId: "q-1788247761592-0"
+ *                     studentAnswer: "https://www.google.com/?zx=1789977230677"
+ *                     type: "speaking"
+ *                   - sectionId: "sec-1788247761592-3"
+ *                     questionId: "q-1788247761592-0"
+ *                     studentAnswer: "Bài viết tự luận mẫu..."
+ *                     type: "essay"
  *               audioBlobUrl:
  *                 type: string
  *                 example: https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3
