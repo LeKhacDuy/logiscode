@@ -524,18 +524,43 @@ export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
     }
   }
 
+  const users = db.get('users');
+  const classStudents = cls && cls.studentIds ? users.filter(u => cls.studentIds.includes(u.id)) : [];
+  const viewedByMap = selfStudy?.viewedBy || {};
+
+  const viewers = classStudents.map(student => {
+    const viewTime = viewedByMap[student.id];
+    const isViewed = !!viewTime;
+    return {
+      studentId: student.id,
+      fullname: student.fullname,
+      studentName: student.fullname,
+      email: student.email,
+      status: isViewed ? 'viewed' : 'unviewed',
+      statusText: isViewed ? 'Viewed' : 'Unviewed',
+      isViewed,
+      viewedAt: viewTime || null
+    };
+  });
+
+  const selfStudyData = selfStudy || {
+    id: null,
+    classId,
+    sessionId: sessionNum,
+    content: 'Chưa có nội dung tự học cho buổi này.',
+    videoUrl: '',
+    viewedBy: {}
+  };
+
   return res.status(200).json({
     success: true,
     classId,
     sessionId: sessionNum,
-    data: selfStudy || {
-      id: null,
-      classId,
-      sessionId: sessionNum,
-      content: 'Chưa có nội dung tự học cho buổi này.',
-      videoUrl: '',
-      viewedBy: {}
-    }
+    data: {
+      ...selfStudyData,
+      viewers
+    },
+    viewers
   });
 };
 
@@ -641,16 +666,35 @@ export const getSelfStudyTrackingReport = (req: AuthenticatedRequest, res: Respo
     }
   }
 
+  const students = classStudents.map(student => {
+    const viewTime = viewedByMap[student.id];
+    const isViewed = !!viewTime;
+    return {
+      studentId: student.id,
+      fullname: student.fullname,
+      studentName: student.fullname,
+      email: student.email,
+      status: isViewed ? 'viewed' : 'unviewed',
+      statusText: isViewed ? 'Viewed' : 'Unviewed',
+      isViewed,
+      viewedAt: viewTime || null
+    };
+  });
+
   return res.status(200).json({
     success: true,
     classId,
     sessionId: sessionNum,
+    total: students.length,
     summary: {
       totalStudents: classStudents.length,
       readCount: readList.length,
       unreadCount: unreadList.length,
       readPercentage: classStudents.length > 0 ? Math.round((readList.length / classStudents.length) * 100) : 0
     },
+    students,
+    data: students,
+    viewers: students,
     readList,
     unreadList
   });
