@@ -135,6 +135,10 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
       sessionId: sessionNum,
       sessionTitle,
       isAssigned: false,
+      submissionStatus: 'unassigned',
+      submissionStatusText: 'Chưa giao bài tập',
+      hasSubmitted: false,
+      isGraded: false,
       message: 'Buổi học này chưa được giáo viên giao bài tập.',
       exerciseGroup: null,
       userSubmission: null
@@ -193,6 +197,15 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     }
   }
 
+  const isGraded = !!(userSubmission && userSubmission.score !== undefined && userSubmission.score !== null);
+  const hasSubmitted = !!userSubmission;
+  const submissionStatus = !userSubmission 
+    ? 'not_submitted' 
+    : (isGraded ? 'graded' : 'pending');
+  const submissionStatusText = !userSubmission
+    ? 'Làm bài tập'
+    : (isGraded ? 'Kết quả' : 'Đã nộp đang chờ gv chấm');
+
   const deadline = cls.sessionDeadlines?.[sessionNum] ||
     new Date(new Date(cls.createdAt).getTime() + sessionNum * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -202,6 +215,10 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     sessionId: sessionNum,
     sessionTitle,
     isAssigned: true,
+    submissionStatus,
+    submissionStatusText,
+    hasSubmitted,
+    isGraded,
     deadline,
     assignedAt: cls.sessionAssignedAt?.[sessionNum] || null,
     aiWarningBanner: '⚠️ CẢNH BÁO NGHIÊM CẤM: Hệ thống phát hiện và nghiêm cấm việc sử dụng công cụ AI (ChatGPT, Claude...) để làm bài tập.',
