@@ -483,8 +483,13 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
     });
   }
 
-  const isAssigned = !!cls.sessionExerciseGroupIds?.[sessionNum];
-  const assignedExerciseGroupId = cls.sessionExerciseGroupIds?.[sessionNum];
+  const courses = db.get('courses');
+  const course = courses.find(c => c.id === cls.courseId);
+  const isAssigned = !!(cls.sessionExerciseGroupIds?.[sessionNum] || course?.sessionExerciseGroupIds?.[sessionNum] || existingSubIndex !== -1);
+  const assignedExerciseGroupId = cls.sessionExerciseGroupIds?.[sessionNum] ||
+    course?.sessionExerciseGroupIds?.[sessionNum] ||
+    (existingSubIndex !== -1 ? 'ex-group-1' : null);
+
   if (!isAssigned || !assignedExerciseGroupId) {
     return res.status(400).json({
       success: false,
