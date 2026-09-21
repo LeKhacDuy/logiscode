@@ -135,8 +135,11 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
       sessionId: sessionNum,
       sessionTitle,
       isAssigned: false,
+      status: 'unassigned',
       submissionStatus: 'unassigned',
-      submissionStatusText: 'Chưa giao bài tập',
+      gradingStatus: null,
+      statusText: 'Unassigned',
+      submissionStatusText: 'Unassigned',
       hasSubmitted: false,
       isGraded: false,
       message: 'Buổi học này chưa được giáo viên giao bài tập.',
@@ -199,12 +202,15 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
 
   const isGraded = !!(userSubmission && userSubmission.score !== undefined && userSubmission.score !== null);
   const hasSubmitted = !!userSubmission;
-  const submissionStatus = !userSubmission 
+  const status: 'not_submitted' | 'submitted' | 'graded' = !userSubmission 
     ? 'not_submitted' 
-    : (isGraded ? 'graded' : 'pending');
-  const submissionStatusText = !userSubmission
-    ? 'Làm bài tập'
-    : (isGraded ? 'Kết quả' : 'Đã nộp đang chờ gv chấm');
+    : (isGraded ? 'graded' : 'submitted');
+  const submissionStatus = status;
+  const statusText = status === 'not_submitted'
+    ? 'Not Submitted'
+    : (status === 'graded' ? 'Graded' : 'Submitted (Pending Review)');
+  const submissionStatusText = statusText;
+  const gradingStatus = hasSubmitted ? (isGraded ? 'graded' : 'pending') : null;
 
   const deadline = cls.sessionDeadlines?.[sessionNum] ||
     new Date(new Date(cls.createdAt).getTime() + sessionNum * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -215,7 +221,10 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     sessionId: sessionNum,
     sessionTitle,
     isAssigned: true,
+    status,
     submissionStatus,
+    gradingStatus,
+    statusText,
     submissionStatusText,
     hasSubmitted,
     isGraded,
@@ -223,7 +232,11 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     assignedAt: cls.sessionAssignedAt?.[sessionNum] || null,
     aiWarningBanner: '⚠️ CẢNH BÁO NGHIÊM CẤM: Hệ thống phát hiện và nghiêm cấm việc sử dụng công cụ AI (ChatGPT, Claude...) để làm bài tập.',
     exerciseGroup: exerciseGroupToReturn,
-    userSubmission: userSubmissionToReturn,
+    userSubmission: userSubmissionToReturn ? {
+      ...userSubmissionToReturn,
+      status: isGraded ? 'graded' : 'submitted',
+      gradingStatus: isGraded ? 'graded' : 'pending'
+    } : null,
     allSubmissions: user.role !== 'STUDENT' ? submissions : undefined
   });
 };
@@ -401,6 +414,8 @@ export const submitSessionExercise = (req: AuthenticatedRequest, res: Response) 
       : `Nộp bài thành công! Bài làm đang chờ giáo viên chấm điểm.`,
     isLate,
     gradingStatus: isGraded ? 'graded' : 'pending',
+    status: isGraded ? 'graded' : 'submitted',
+    submissionStatus: isGraded ? 'graded' : 'submitted',
     totalQuestions: answers ? answers.length : 0,
     data: safeSubmission
   });
@@ -423,12 +438,15 @@ export const getSessionSubmissions = (req: AuthenticatedRequest, res: Response) 
 
   const enrichedSubmissions = submissions.map(sub => {
     const student = users.find(u => u.id === sub.studentId);
+    const isGraded = sub.score !== undefined && sub.score !== null;
     return {
       ...sub,
       studentName: student ? student.fullname : 'Học viên',
       studentEmail: student ? student.email : '',
-      gradingStatus: sub.score !== undefined ? 'graded' : 'pending',
-      gradingStatusText: sub.score !== undefined ? 'Đã chấm' : 'Chưa chấm'
+      status: isGraded ? 'graded' : 'submitted',
+      submissionStatus: isGraded ? 'graded' : 'submitted',
+      gradingStatus: isGraded ? 'graded' : 'pending',
+      gradingStatusText: isGraded ? 'Graded' : 'Pending'
     };
   });
 

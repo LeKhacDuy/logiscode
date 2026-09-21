@@ -89,11 +89,16 @@ export interface SubmissionAnswer {
   explanation?: string;
 }
 
+export type SubmissionStatus = 'not_submitted' | 'submitted' | 'graded';
+export type GradingStatus = 'pending' | 'graded';
+
 export interface Submission {
   id: string;
   classId: string;
   sessionId: number;
   studentId: string;
+  status?: SubmissionStatus;
+  gradingStatus?: GradingStatus;
   answers: SubmissionAnswer[];
   audioBlobUrl?: string; // For speaking exercise upload
   score?: number; // Điểm tổng kết do giáo viên chấm (0-100)
