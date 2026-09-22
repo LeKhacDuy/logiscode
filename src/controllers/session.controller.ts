@@ -811,18 +811,6 @@ export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
   const index = selfStudies.findIndex(ss => ss.classId === classId && ss.sessionId === sessionNum);
   const selfStudy = index !== -1 ? selfStudies[index] : null;
 
-  // Tự động ghi nhận thời gian xem cho học viên khi truy cập bài tự học đã có nội dung
-  if (user && user.role === 'STUDENT' && selfStudy && selfStudy.content && selfStudy.content !== 'Chưa có nội dung tự học cho buổi này.') {
-    if (!selfStudy.viewedBy) {
-      selfStudy.viewedBy = {};
-    }
-    if (!selfStudy.viewedBy[user.id]) {
-      selfStudy.viewedBy[user.id] = new Date().toISOString();
-      selfStudies[index] = selfStudy;
-      db.update('selfStudies', selfStudies);
-    }
-  }
-
   const users = db.get('users');
   const posterId = selfStudy?.updatedBy || cls?.teacherId;
   const poster = posterId ? users.find(u => u.id === posterId) : null;
@@ -832,22 +820,24 @@ export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
   const title = selfStudy?.title || defaultTitle;
 
   const isStudent = user && user.role === 'STUDENT';
+  const viewedByMap = selfStudy?.viewedBy || {};
+  const isViewed = !!viewedByMap[user.id];
+  const viewedAt = viewedByMap[user.id] || null;
 
   let viewers: any[] | undefined = undefined;
   if (!isStudent) {
     const classStudents = cls && cls.studentIds ? users.filter(u => cls.studentIds.includes(u.id)) : [];
-    const viewedByMap = selfStudy?.viewedBy || {};
     viewers = classStudents.map(student => {
       const viewTime = viewedByMap[student.id];
-      const isViewed = !!viewTime;
+      const isStudentViewed = !!viewTime;
       return {
         studentId: student.id,
         fullname: student.fullname,
         studentName: student.fullname,
         email: student.email,
-        status: isViewed ? 'viewed' : 'unviewed',
-        statusText: isViewed ? 'Viewed' : 'Unviewed',
-        isViewed,
+        status: isStudentViewed ? 'viewed' : 'unviewed',
+        statusText: isStudentViewed ? 'Viewed' : 'Unviewed',
+        isViewed: isStudentViewed,
         viewedAt: viewTime || null
       };
     });
@@ -870,11 +860,15 @@ export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
   selfStudyData.updatedByName = teacherName;
 
   if (isStudent) {
-    // Role học viên: không hiển thị danh sách viewers & viewedBy
+    // Role học viên: không hiển thị danh sách viewers & viewedBy của các học viên khác
     delete selfStudyData.viewers;
     delete selfStudyData.viewedBy;
+    selfStudyData.isViewed = isViewed;
+    selfStudyData.viewedAt = viewedAt;
   } else {
     selfStudyData.viewers = viewers;
+    selfStudyData.isViewed = isViewed;
+    selfStudyData.viewedAt = viewedAt;
   }
 
   const responseJson: any = {
@@ -888,6 +882,8 @@ export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
     authorName: teacherName,
     postedByName: teacherName,
     updatedByName: teacherName,
+    isViewed,
+    viewedAt,
     data: selfStudyData
   };
 
@@ -966,26 +962,64 @@ export const updateSelfStudy = (req: AuthenticatedRequest, res: Response) => {
   });
 };
 
-// 7. Auto Record Student View for Self-Study (Tab 2 - Student)
+// 7. Ghi nhận lượt xem bài tự học khi Học viên bấm vào xem (Tab 2 - Student)
 export const recordSelfStudyView = (req: AuthenticatedRequest, res: Response) => {
   const { classId, sessionId } = req.params;
   const sessionNum = parseSessionId(sessionId);
   const user = req.user!;
 
+  const classes = db.get('classes');
+  const cls = classes.find(c => c.id === classId);
+  if (user && user.role === 'STUDENT' && cls && isStudentReviewLocked(cls, user.id)) {
+    return res.status(403).json({
+      success: false,
+      isReviewLocked: true,
+      message: cls.reviewLockMessage || 'Lớp học này đã kết thúc và đã bị khóa quyền xem lại nội dung tự học.'
+    });
+  }
+
   const selfStudies = db.get('selfStudies');
   const index = selfStudies.findIndex(ss => ss.classId === classId && ss.sessionId === sessionNum);
+
+  const nowIso = new Date().toISOString();
+  let recordedTime = nowIso;
 
   if (index !== -1) {
     if (!selfStudies[index].viewedBy) {
       selfStudies[index].viewedBy = {};
     }
-    selfStudies[index].viewedBy[user.id] = new Date().toISOString();
+    if (!selfStudies[index].viewedBy[user.id]) {
+      selfStudies[index].viewedBy[user.id] = nowIso;
+      recordedTime = nowIso;
+    } else {
+      recordedTime = selfStudies[index].viewedBy[user.id];
+    }
+    db.update('selfStudies', selfStudies);
+  } else {
+    const newSelfStudy: SelfStudy = {
+      id: `ss-${Date.now()}`,
+      classId,
+      sessionId: sessionNum,
+      content: 'Chưa có nội dung tự học cho buổi này.',
+      videoUrl: '',
+      updatedBy: '',
+      updatedAt: nowIso,
+      viewedBy: {
+        [user.id]: nowIso
+      }
+    };
+    selfStudies.push(newSelfStudy);
     db.update('selfStudies', selfStudies);
   }
 
   return res.status(200).json({
     success: true,
-    message: 'Đã ghi nhận lượt xem bài tự học!'
+    message: 'Đã ghi nhận lượt xem bài tự học thành công!',
+    classId,
+    sessionId: sessionNum,
+    studentId: user.id,
+    isViewed: true,
+    viewedAt: recordedTime
   });
 };
 

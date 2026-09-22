@@ -406,7 +406,8 @@ router.put('/:sessionId/self-study', requireRoles('TEACHER', 'ADMIN'), updateSel
  * @swagger
  * /api/v1/classes/{classId}/sessions/{sessionId}/self-study/view:
  *   post:
- *     summary: Tab 2 - Tự động ghi nhận Lượt xem nội dung Tự học - Học viên (Read-only view counter)
+ *     summary: Tab 2 - Ghi nhận Lượt xem nội dung Tự học khi Học viên bấm xem (Student click view trigger)
+ *     description: Học viên bấm nút xem bài tự học sẽ gọi API này để hệ thống ghi nhận thời gian xem (không tự động cộng view khi chỉ gọi API GET).
  *     tags: [Sessions & Lesson Details]
  *     security:
  *       - bearerAuth: []
@@ -426,6 +427,7 @@ router.put('/:sessionId/self-study', requireRoles('TEACHER', 'ADMIN'), updateSel
  *         description: Ghi nhận thời gian xem bài của Học viên thành công.
  */
 router.post('/:sessionId/self-study/view', requireRoles('STUDENT'), recordSelfStudyView);
+router.put('/:sessionId/self-study/view', requireRoles('STUDENT'), recordSelfStudyView);
 
 /**
  * @swagger
