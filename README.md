@@ -108,9 +108,9 @@ Bấm nút **Authorize 🔓** ở góc trên màn hình Swagger UI và sử dụ
   - `POST .../sessions/:sessionId/submit` (Student): Nộp bài tập 5 dạng (Trắc nghiệm, Tự luận, Điền từ, Listening, Speaking audio link) -> Tự động check và đánh tag `isLate` nếu quá hạn.
   - `POST .../sessions/:sessionId/submissions/:subId/grade` (Teacher): Mở Popup Chấm bài (nhập điểm 0-100 & nhận xét).
 - **Tab 2: Self-Study & Tracking**:
-  - `GET .../sessions/:sessionId/self-study`: Xem bài tự học.
-  - `POST .../sessions/:sessionId/self-study` (Teacher): Đăng/chỉnh sửa nội dung tự học.
-  - `POST .../sessions/:sessionId/self-study/view` (Student): Tự động lưu lượt xem & timestamp.
+  - `GET .../sessions/:sessionId/self-study`: Xem bài tự học (Trả về `title`, `teacherName`, `isViewed`, `viewedAt`; ẩn danh sách `viewers` đối với role Học viên).
+  - `POST .../sessions/:sessionId/self-study` (Teacher): Đăng/chỉnh sửa nội dung tự học (Hỗ trợ `title`, `content`, `videoUrl`).
+  - `POST / PUT .../sessions/:sessionId/self-study/view` (Student): Ghi nhận lượt xem khi Học viên bấm vào xem (Không tự động cộng view khi chỉ gọi API GET).
   - `GET .../sessions/:sessionId/self-study/tracking` (Teacher/Admin): Xem danh sách chi tiết học viên **ĐÃ XEM** (kèm thời gian xem) và **CHƯA XEM**.
 
 ### 6. Exercise Builder Management (`/api/v1/exercises`) - Admin & Teacher
