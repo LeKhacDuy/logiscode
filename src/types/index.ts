@@ -121,6 +121,7 @@ export interface SelfStudy {
   id: string;
   classId: string;
   sessionId: number;
+  title?: string;
   content: string;
   videoUrl?: string;
   updatedBy: string;

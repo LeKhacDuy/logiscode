@@ -337,6 +337,7 @@ router.put(
  * /api/v1/classes/{classId}/sessions/{sessionId}/self-study:
  *   get:
  *     summary: Tab 2 - Xem nội dung Tự học (Self-study)
+ *     description: Trả về thông tin buổi tự học kèm title và teacherName (tên giáo viên/người đăng). Lưu ý danh sách viewers chỉ trả về cho role TEACHER và ADMIN (role STUDENT không bao gồm viewers).
  *     tags: [Sessions & Lesson Details]
  *     security:
  *       - bearerAuth: []
@@ -385,6 +386,9 @@ router.get('/:sessionId/self-study', getSelfStudy);
  *             required:
  *               - content
  *             properties:
+ *               title:
+ *                 type: string
+ *                 example: "Tài liệu Tự học Buổi 1: IELTS Grammar & Vocab Essentials"
  *               content:
  *                 type: string
  *                 example: "### Bài học tự chọn Buổi 1\nHọc viên đọc trước tài liệu trang 15."

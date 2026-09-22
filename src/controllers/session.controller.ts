@@ -801,6 +801,12 @@ export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
     });
   }
 
+  const courses = db.get('courses');
+  const course = cls ? courses.find(c => c.id === cls.courseId) : null;
+  const defaultTitle = course?.sessionTitles?.[sessionNum] ||
+    course?.sessions?.find(s => s.sessionNumber === sessionNum)?.title ||
+    `Tự học Buổi ${sessionNum}`;
+
   const selfStudies = db.get('selfStudies');
   const index = selfStudies.findIndex(ss => ss.classId === classId && ss.sessionId === sessionNum);
   const selfStudy = index !== -1 ? selfStudies[index] : null;
@@ -818,63 +824,112 @@ export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
   }
 
   const users = db.get('users');
-  const classStudents = cls && cls.studentIds ? users.filter(u => cls.studentIds.includes(u.id)) : [];
-  const viewedByMap = selfStudy?.viewedBy || {};
+  const posterId = selfStudy?.updatedBy || cls?.teacherId;
+  const poster = posterId ? users.find(u => u.id === posterId) : null;
+  const teacher = cls?.teacherId ? users.find(u => u.id === cls.teacherId) : null;
+  const teacherName = poster?.fullname || teacher?.fullname || 'Giáo viên phụ trách';
+  const teacherEmail = poster?.email || teacher?.email || undefined;
+  const title = selfStudy?.title || defaultTitle;
 
-  const viewers = classStudents.map(student => {
-    const viewTime = viewedByMap[student.id];
-    const isViewed = !!viewTime;
-    return {
-      studentId: student.id,
-      fullname: student.fullname,
-      studentName: student.fullname,
-      email: student.email,
-      status: isViewed ? 'viewed' : 'unviewed',
-      statusText: isViewed ? 'Viewed' : 'Unviewed',
-      isViewed,
-      viewedAt: viewTime || null
-    };
-  });
+  const isStudent = user && user.role === 'STUDENT';
 
-  const selfStudyData = selfStudy || {
+  let viewers: any[] | undefined = undefined;
+  if (!isStudent) {
+    const classStudents = cls && cls.studentIds ? users.filter(u => cls.studentIds.includes(u.id)) : [];
+    const viewedByMap = selfStudy?.viewedBy || {};
+    viewers = classStudents.map(student => {
+      const viewTime = viewedByMap[student.id];
+      const isViewed = !!viewTime;
+      return {
+        studentId: student.id,
+        fullname: student.fullname,
+        studentName: student.fullname,
+        email: student.email,
+        status: isViewed ? 'viewed' : 'unviewed',
+        statusText: isViewed ? 'Viewed' : 'Unviewed',
+        isViewed,
+        viewedAt: viewTime || null
+      };
+    });
+  }
+
+  const selfStudyData: any = selfStudy ? { ...selfStudy } : {
     id: null,
     classId,
     sessionId: sessionNum,
     content: 'Chưa có nội dung tự học cho buổi này.',
-    videoUrl: '',
-    viewedBy: {}
+    videoUrl: ''
   };
 
-  return res.status(200).json({
+  selfStudyData.title = title;
+  selfStudyData.selfStudyTitle = title;
+  selfStudyData.teacherName = teacherName;
+  selfStudyData.teacherEmail = teacherEmail;
+  selfStudyData.authorName = teacherName;
+  selfStudyData.postedByName = teacherName;
+  selfStudyData.updatedByName = teacherName;
+
+  if (isStudent) {
+    // Role học viên: không hiển thị danh sách viewers & viewedBy
+    delete selfStudyData.viewers;
+    delete selfStudyData.viewedBy;
+  } else {
+    selfStudyData.viewers = viewers;
+  }
+
+  const responseJson: any = {
     success: true,
     classId,
     sessionId: sessionNum,
-    data: {
-      ...selfStudyData,
-      viewers
-    },
-    viewers
-  });
+    title,
+    selfStudyTitle: title,
+    teacherName,
+    teacherEmail,
+    authorName: teacherName,
+    postedByName: teacherName,
+    updatedByName: teacherName,
+    data: selfStudyData
+  };
+
+  if (!isStudent) {
+    responseJson.viewers = viewers;
+  }
+
+  return res.status(200).json(responseJson);
 };
 
 // 6. Post / Edit Self-Study content (Tab 2 - Teacher)
 export const updateSelfStudy = (req: AuthenticatedRequest, res: Response) => {
   const { classId, sessionId } = req.params;
   const sessionNum = parseSessionId(sessionId);
-  const { content, videoUrl } = req.body;
+  const { title, content, videoUrl } = req.body;
   const user = req.user!;
 
   if (!content) {
     return res.status(400).json({ success: false, message: 'Nội dung tự học không được để trống.' });
   }
 
+  const classes = db.get('classes');
+  const cls = classes.find(c => c.id === classId);
+  const courses = db.get('courses');
+  const course = cls ? courses.find(c => c.id === cls.courseId) : null;
+  const defaultTitle = course?.sessionTitles?.[sessionNum] ||
+    course?.sessions?.find(s => s.sessionNumber === sessionNum)?.title ||
+    `Tự học Buổi ${sessionNum}`;
+
   const selfStudies = db.get('selfStudies');
   const index = selfStudies.findIndex(ss => ss.classId === classId && ss.sessionId === sessionNum);
+
+  const rawTitle = title !== undefined ? title : req.body.selfStudyTitle;
+  const resolvedTitle = rawTitle !== undefined && rawTitle !== null && String(rawTitle).trim() !== ''
+    ? String(rawTitle).trim()
+    : (index !== -1 && selfStudies[index].title ? selfStudies[index].title : defaultTitle);
 
   const updatedSelfStudy: SelfStudy = {
     id: index !== -1 ? selfStudies[index].id : `ss-${Date.now()}`,
     classId,
     sessionId: sessionNum,
+    title: resolvedTitle,
     content,
     videoUrl: videoUrl || '',
     updatedBy: user.id,
@@ -893,7 +948,21 @@ export const updateSelfStudy = (req: AuthenticatedRequest, res: Response) => {
   return res.status(200).json({
     success: true,
     message: 'Cập nhật nội dung bài tự học thành công!',
-    data: updatedSelfStudy
+    title: resolvedTitle,
+    selfStudyTitle: resolvedTitle,
+    teacherName: user.fullname,
+    teacherEmail: user.email,
+    authorName: user.fullname,
+    postedByName: user.fullname,
+    updatedByName: user.fullname,
+    data: {
+      ...updatedSelfStudy,
+      teacherName: user.fullname,
+      teacherEmail: user.email,
+      authorName: user.fullname,
+      postedByName: user.fullname,
+      updatedByName: user.fullname
+    }
   });
 };
 
