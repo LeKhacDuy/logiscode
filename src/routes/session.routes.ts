@@ -45,6 +45,7 @@ router.get('/', getSessions);
  *   get:
  *     summary: Tab 1 - Xem nội dung Bài tập của buổi (Kèm Cảnh báo nghiêm cấm sử dụng AI)
  *     description: |
+ *       - Trả về thông tin buổi học kèm `className` (tên lớp học), `sessionTitle`, `lessonTitle`.
  *       - Nếu buổi học chưa được giáo viên gán bài tập cho lớp: Trả về `isAssigned: false` kèm thông báo *"Buổi học này chưa được giáo viên giao bài tập."*
  *       - Nếu buổi học đã được gán bài tập: Trả về `isAssigned: true` kèm toàn bộ nội dung đề bài tập `exerciseGroup` để học viên làm bài.
  *     tags: [Sessions & Lesson Details]
@@ -63,7 +64,7 @@ router.get('/', getSessions);
  *           type: integer
  *     responses:
  *       200:
- *         description: Trả về đề bài 5 dạng (hoặc thông báo chưa giao bài), cảnh báo AI và trạng thái làm bài cá nhân/toàn lớp.
+ *         description: Trả về đề bài 5 dạng (hoặc thông báo chưa giao bài), className, cảnh báo AI và trạng thái làm bài cá nhân/toàn lớp.
  */
 router.get('/:sessionId/exercise', getSessionExercise);
 

@@ -356,8 +356,10 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     return res.status(200).json({
       success: true,
       classId,
+      className: cls.name,
       sessionId: sessionNum,
       sessionTitle,
+      lessonTitle: sessionTitle,
       isAssigned: false,
       deadline: null,
       assignedAt: null,
@@ -370,7 +372,17 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
       isGraded: false,
       message: 'Buổi học này chưa được giáo viên giao bài tập.',
       exerciseGroup: null,
-      userSubmission: null
+      userSubmission: null,
+      data: {
+        classId,
+        className: cls.name,
+        sessionId: sessionNum,
+        sessionTitle,
+        lessonTitle: sessionTitle,
+        isAssigned: false,
+        exerciseGroup: null,
+        userSubmission: null
+      }
     });
   }
 
@@ -394,8 +406,8 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
   const submissionStatusText = statusText;
   const gradingStatus = hasSubmitted ? (isGraded ? 'graded' : 'pending') : null;
 
-  let exerciseGroupToReturn = null;
-  let userSubmissionToReturn = null;
+  let exerciseGroupToReturn: any = null;
+  let userSubmissionToReturn: any = null;
 
   if (user.role === 'STUDENT') {
     const revealAnswers = isGraded;
@@ -417,6 +429,16 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     } : null;
   }
 
+  if (exerciseGroupToReturn) {
+    exerciseGroupToReturn.className = cls.name;
+    exerciseGroupToReturn.sessionTitle = sessionTitle;
+    exerciseGroupToReturn.lessonTitle = sessionTitle;
+  }
+
+  if (userSubmissionToReturn) {
+    userSubmissionToReturn.className = cls.name;
+  }
+
   const deadline = cls.sessionDeadlines?.[sessionNum] ||
     new Date(new Date(cls.createdAt).getTime() + sessionNum * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -431,8 +453,10 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
   return res.status(200).json({
     success: true,
     classId,
+    className: cls.name,
     sessionId: sessionNum,
     sessionTitle,
+    lessonTitle: sessionTitle,
     isAssigned: true,
     status,
     submissionStatus,
@@ -446,7 +470,21 @@ export const getSessionExercise = (req: AuthenticatedRequest, res: Response) => 
     aiWarningBanner: '⚠️ CẢNH BÁO NGHIÊM CẤM: Hệ thống phát hiện và nghiêm cấm việc sử dụng công cụ AI (ChatGPT, Claude...) để làm bài tập.',
     exerciseGroup: exerciseGroupToReturn,
     userSubmission: userSubmissionToReturn,
-    allSubmissions: enrichedAllSubmissions
+    allSubmissions: enrichedAllSubmissions,
+    data: {
+      classId,
+      className: cls.name,
+      sessionId: sessionNum,
+      sessionTitle,
+      lessonTitle: sessionTitle,
+      isAssigned: true,
+      deadline,
+      status,
+      submissionStatus,
+      gradingStatus,
+      exerciseGroup: exerciseGroupToReturn,
+      userSubmission: userSubmissionToReturn
+    }
   });
 };
 
@@ -853,6 +891,7 @@ export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
 
   selfStudyData.title = title;
   selfStudyData.selfStudyTitle = title;
+  selfStudyData.className = cls?.name;
   selfStudyData.teacherName = teacherName;
   selfStudyData.teacherEmail = teacherEmail;
   selfStudyData.authorName = teacherName;
@@ -874,6 +913,7 @@ export const getSelfStudy = (req: AuthenticatedRequest, res: Response) => {
   const responseJson: any = {
     success: true,
     classId,
+    className: cls?.name,
     sessionId: sessionNum,
     title,
     selfStudyTitle: title,
